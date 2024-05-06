@@ -4,7 +4,9 @@
 [versions]
 guava = "32.1.3-jre"
 junit-jupiter = "5.10.1"
+rocksdb = "9.1.1"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+rocksdb = { module = "org.rocksdb:rocksdbjni", version.ref = "rocksdb" }
