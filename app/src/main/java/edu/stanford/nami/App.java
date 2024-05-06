@@ -24,7 +24,8 @@ public class App {
     var config = loadServerConfig(args);
     System.out.println(Path.of(".", "hello").toAbsolutePath());
     RocksDB.loadLibrary();
-    try (final Options options = new Options().setCreateIfMissing(true)) {
+    try (final Options options = new Options()) {
+      options.setCreateIfMissing(true);
       try (final RocksDB db = RocksDB.open(options, "/home/jtamayo/src/dbs/test1")) {
         // do something
 
