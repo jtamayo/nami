@@ -8,6 +8,8 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     id 'application'
+    id('io.freefair.lombok') version '8.6'
+    id('com.diffplug.spotless') version '6.25.0'
 }
 
 repositories {
@@ -23,7 +25,8 @@ dependencies {
 
     // This dependency is used by the application.
     implementation libs.guava
-    implementation "org.rocksdb:rocksdbjni:9.1.1"
+    implementation 'org.rocksdb:rocksdbjni:9.1.1'
+    implementation 'com.google.code.gson:gson:2.10.1'
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
@@ -35,10 +38,16 @@ java {
 
 application {
     // Define the main class for the application.
-    mainClass = 'org.example.App'
+    mainClass = 'edu.stanford.nami.App'
 }
 
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        googleJavaFormat()
+    }
 }
