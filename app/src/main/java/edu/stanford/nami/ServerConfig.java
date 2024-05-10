@@ -1,4 +1,4 @@
-package nami.stanford.edu;
+package edu.stanford.nami;
 
 import lombok.Data;
 

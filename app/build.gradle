@@ -18,15 +18,16 @@ repositories {
 }
 
 dependencies {
-    // Use JUnit Jupiter for testing.
-    testImplementation libs.junit.jupiter
-
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    // This dependency is used by the application.
+    // App dependencies
     implementation libs.guava
     implementation 'org.rocksdb:rocksdbjni:9.1.1'
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Test dependencies
+    testImplementation libs.junit.jupiter
+    testImplementation "com.google.truth:truth:1.4.2"
+
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 // Apply a specific Java toolchain to ease working on different environments.

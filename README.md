@@ -12,3 +12,6 @@ CS244b class project
 
 ## Formatting code
 `./gradlew spotlessApply` (or equivalently `./gradlew sA`).
+
+## Installing a reasonable formatter
+https://marketplace.visualstudio.com/items?itemName=JoseVSeb.google-java-format-for-vs-code
