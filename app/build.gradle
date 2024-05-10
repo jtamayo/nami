@@ -23,6 +23,11 @@ dependencies {
     implementation 'org.rocksdb:rocksdbjni:9.1.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
+    runtimeOnly 'io.grpc:grpc-netty-shaded:1.63.0'
+    implementation 'io.grpc:grpc-protobuf:1.63.0'
+    implementation 'io.grpc:grpc-stub:1.63.0'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53' // necessary for Java 9+
+
     // Test dependencies
     testImplementation libs.junit.jupiter
     testImplementation "com.google.truth:truth:1.4.2"
