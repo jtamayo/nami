@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 record NVKey(long tid, String key) {
+  public static final int TID_BYTE_SIZE = 8;
 
   public NVKey(long tid, String key) {
     Preconditions.checkArgument(tid > 0, "tid must be positive");
@@ -15,16 +16,10 @@ record NVKey(long tid, String key) {
 
   public byte[] toBytes() {
     // 1 for key length, n for key bytes, 8 for tid
-    var buffer = ByteBuffer.allocate(1 + key.length() + 8);
-    // first copy key length, safe b/c key.length() < Byte.MAX_VALUE
-    buffer.put((byte) key.length());
-    // copy string bytes, safe b/c they're all ascii
-    for (int i = 0; i < key.length(); i++) {
-      buffer.put((byte) key.charAt(i));
-    }
+    var buffer = ByteBuffer.allocate(NKey.computeByteSize(key) + TID_BYTE_SIZE);
+    NKey.writeToBuffer(key, buffer);
     // copy tid bytes
     buffer.putLong(tid);
-
     return buffer.array();
   }
 
@@ -35,12 +30,14 @@ record NVKey(long tid, String key) {
     var length = buffer.get();
     checkWellFormedKey(length > 0, "Stored length must be positive");
     var expectedLength = 1 + length + 8;
-    checkWellFormedKey(bytes.length == expectedLength, "Expected bytes to be of size " + expectedLength + " including header and footer");
+    checkWellFormedKey(
+        bytes.length == expectedLength,
+        "Expected bytes to be of size " + expectedLength + " including header and footer");
 
     // safe to read the string key itself
     var key = StandardCharsets.UTF_8.decode(buffer.slice(1, length)).toString();
     // skip to one past key length + key itself
-    buffer.position(1 + length); 
+    buffer.position(1 + length);
     var tid = buffer.getLong();
 
     // paranoia: check we read everything

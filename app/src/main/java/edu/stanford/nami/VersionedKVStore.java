@@ -1,6 +1,5 @@
 package edu.stanford.nami;
 
-import com.google.common.base.Preconditions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
@@ -20,8 +19,8 @@ import org.rocksdb.RocksDBException;
  * <p>
  */
 public class VersionedKVStore {
-  // TODO: Does this need to be aware of partitions at all? 
-  // TODO: do we want to check that the tid that's writing is after the most recent tid? 
+  // TODO: Does this need to be aware of partitions at all?
+  // TODO: do we want to check that the tid that's writing is after the most recent tid?
   // TODO: how do we implement transactions? do we need to at all?
   // TODO: do I need to store tid as part of every transaction? I need every write to be atomic,
   // and AFAICT, put doesn't necessarily flush to disk. I also need to know that, if I crash,
