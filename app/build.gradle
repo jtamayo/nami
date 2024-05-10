@@ -64,6 +64,7 @@ application {
     mainClass = 'edu.stanford.nami.App'
 }
 
+
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
