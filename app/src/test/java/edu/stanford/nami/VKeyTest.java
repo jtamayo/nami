@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Test;
 public class VKeyTest {
   @Test
   void testHappySerde() {
-    var a = new VKey(123, "abc");
+    var a = new NVKey(123, "abc");
     var bytes = a.toBytes();
-    var b = VKey.fromBytes(bytes);
+    var b = NVKey.fromBytes(bytes);
     
     assertThat(a).isEqualTo(b);
     assertThat(bytes.length).isEqualTo(12);

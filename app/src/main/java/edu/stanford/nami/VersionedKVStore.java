@@ -33,11 +33,11 @@ public class VersionedKVStore {
     this.db = db;
   }
 
-  public void put(VKey key, byte[] value) throws RocksDBException {
+  public void put(NVKey key, byte[] value) throws RocksDBException {
     db.put(key.toBytes(), value);
   }
 
-  public byte[] get(VKey key) throws RocksDBException {
+  public byte[] get(NVKey key) throws RocksDBException {
     return db.get(key.toBytes());
   }
 }

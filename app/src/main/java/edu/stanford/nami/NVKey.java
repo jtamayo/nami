@@ -4,14 +4,11 @@ import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-record VKey(long tid, String key) {
+record NVKey(long tid, String key) {
 
-  public VKey(long tid, String key) {
+  public NVKey(long tid, String key) {
     Preconditions.checkArgument(tid > 0, "tid must be positive");
-    Preconditions.checkArgument(!key.isEmpty(), "Keys cannot be empty");
-    Preconditions.checkArgument(
-        key.length() < Byte.MAX_VALUE, "keys must be at most " + Byte.MAX_VALUE + " in length");
-    Preconditions.checkArgument(isPrintable(key), "keys must be only ascii printable characters");
+    NKey.checkIsValidNKey(key);
     this.tid = tid;
     this.key = key;
   }
@@ -31,7 +28,7 @@ record VKey(long tid, String key) {
     return buffer.array();
   }
 
-  public static VKey fromBytes(byte[] bytes) {
+  public static NVKey fromBytes(byte[] bytes) {
     checkWellFormedKey(bytes.length > 1, "Bytes cannot be empty");
     var buffer = ByteBuffer.wrap(bytes);
     // key length first
@@ -49,18 +46,7 @@ record VKey(long tid, String key) {
     // paranoia: check we read everything
     Preconditions.checkState(!buffer.hasRemaining(), "should have read the whole buffer");
 
-    return new VKey(tid, key);
-  }
-
-  public static final char MIN_PRINTABLE_CHAR = '!';
-  public static final char MAX_PRINTABLE_CHAR = '~';
-
-  public static boolean isPrintable(String s) {
-    for (int i = 0; i < s.length(); i++) {
-      char c = s.charAt(i);
-      if (c < MIN_PRINTABLE_CHAR || c > MAX_PRINTABLE_CHAR) return false;
-    }
-    return true;
+    return new NVKey(tid, key);
   }
 
   private static void checkWellFormedKey(boolean condition, String msg) {
