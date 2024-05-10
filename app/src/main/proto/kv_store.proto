@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "edu.stanford.nami";
+option java_outer_classname = "KVStoreProto";
+
+package kvstore;
+
+// Interface exported by the server.
+service KVStore {
+  // A simple RPC.
+  //
+  // Obtains the value at a given key.
+  rpc Get(GetRequest) returns (GetResponse) {}
+
+  rpc Put(PutRequest) returns (PutResponse) {}
+}
+
+message ProtoVKey {
+  int64 tid = 1;
+  string key = 2;
+}
+
+message GetRequest {
+  ProtoVKey key = 1;
+}
+
+message GetResponse {
+  bytes value = 1;
+}
+
+message PutRequest {
+  ProtoVKey key = 1;
+  bytes value = 2;
+}
+
+message PutResponse {
+  bytes value = 1;
+}
