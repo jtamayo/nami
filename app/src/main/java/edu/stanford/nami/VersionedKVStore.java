@@ -2,6 +2,7 @@ package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
 import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 
 /**
  * A versioned key-value store backed by a RocksDB database. Every key is versioned by a tid, which
@@ -32,8 +33,11 @@ public class VersionedKVStore {
     this.db = db;
   }
 
-  public void put(long tid, Object key, byte[] value) {
-    Preconditions.checkArgument(tid > 0, "tid must be positive");
-    
+  public void put(VKey key, byte[] value) throws RocksDBException {
+    db.put(key.toBytes(), value);
+  }
+
+  public byte[] get(VKey key) throws RocksDBException {
+    return db.get(key.toBytes());
   }
 }
