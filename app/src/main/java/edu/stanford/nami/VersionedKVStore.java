@@ -2,6 +2,8 @@ package edu.stanford.nami;
 
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
+import com.google.common.base.Preconditions;
 
 /**
  * A versioned key-value store backed by a RocksDB database. Every key is versioned by a tid, which
@@ -38,5 +40,35 @@ public class VersionedKVStore {
 
   public byte[] get(NVKey key) throws RocksDBException {
     return db.get(key.toBytes());
+  }
+
+  /** Get a value as of tid or before it. */
+  public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
+    Preconditions.checkArgument(tid > 0, "tid must be non negative");
+    try (RocksIterator it = db.newIterator()) {
+      // seek to last possible transaction
+      // TODO: use prefix search to prune search space
+      var end = new NVKey(tid, key.key());
+      it.seekForPrev(end.toBytes());
+      if (it.isValid()) {
+        var readKey = NVKey.fromBytes(it.key());
+        if (readKey.key().equals(key.key())) {
+          // found it
+          return it.value();
+        } else {
+          // key not found
+          return null;
+        }
+      } else {
+        // check whether shit broke or if the data wasn't found
+        it.status();
+        // looks like we're ok
+        return null;
+      }
+    }
+  }
+
+  public byte[] getLatest(NKey key) throws RocksDBException {
+    return getAsOf(key, Long.MAX_VALUE);
   }
 }
