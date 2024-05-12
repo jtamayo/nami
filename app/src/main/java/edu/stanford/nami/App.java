@@ -7,6 +7,11 @@ import com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.common.primitives.Longs;
 import com.google.gson.Gson;
+
+import edu.stanford.nami.config.ChunksConfig;
+import edu.stanford.nami.config.PeersConfig;
+import edu.stanford.nami.config.ServerConfig;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -15,34 +20,19 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 public class App {
+
   public String getGreeting() {
     return "Hello World!";
   }
 
   public static void main(String[] args) {
+    System.out.println("Running in " + (new File(".").getAbsolutePath()));
     var config = loadServerConfig(args);
-    System.out.println(Path.of(".", "hello").toAbsolutePath());
-    RocksDB.loadLibrary();
-    try (final Options options = new Options()) {
-      options.setCreateIfMissing(true);
-      try (final RocksDB db = RocksDB.open(options, "/home/jtamayo/src/dbs/test1")) {
-        // do something
-
-        var key = "hello".getBytes();
-        final byte[] value = db.get(key);
-        if (value == null) { // value == null if key1 does not exist in db.
-          System.out.println("Storing " + config.getStartValue());
-          db.put(key, Longs.toByteArray(config.getStartValue()));
-        } else {
-          var next = Longs.fromByteArray(value) + 1;
-          System.out.println("Incrementing to " + next);
-          db.put(key, Longs.toByteArray(next));
-        }
-      }
-    } catch (RocksDBException e) {
-      // do some error handling
-      throw new RuntimeException(e);
-    }
+    System.out.println(config);
+    var serverAllocation = loadPeersConfig(config.getPeerConfigsPath());
+    System.out.println(serverAllocation);
+    var chunksConfig = loadChunksConfig(config.getChunkConfigPath());
+    System.out.println(chunksConfig);
   }
 
   private static ServerConfig loadServerConfig(String[] args) {
@@ -58,10 +48,29 @@ public class App {
       System.exit(-2);
     }
 
-    Gson gson = new Gson();
 
     try (var reader = Files.newReader(file, Charsets.UTF_8)) {
-      return gson.fromJson(reader, ServerConfig.class);
+      return new Gson().fromJson(reader, ServerConfig.class);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static PeersConfig loadPeersConfig(String path) {
+    var file = new File(path);
+    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, PeersConfig.class);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static ChunksConfig loadChunksConfig(String path) {
+    var file = new File(path);
+    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, ChunksConfig.class);
 
     } catch (IOException e) {
       throw new RuntimeException(e);
