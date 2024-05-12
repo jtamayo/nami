@@ -37,8 +37,16 @@ public class App {
 
     var config = loadServerConfig(configFile);
     System.out.println("Loaded server config " + config);
-    var serverAllocation = loadPeersConfig(configFile, config.getPeerConfigsPath());
-    System.out.println(serverAllocation);
+    var selfId = config.getSelfPeerId();
+    System.out.println("Starting peer " + config.getSelfPeerId());
+    var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
+    System.out.println(peersConfig);
+    System.out.println(
+        "Self config: "
+            + peersConfig.getPeers().stream()
+                .filter(p -> p.getPeerId().equals(selfId))
+                .findFirst()
+                .orElseThrow());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
     System.out.println(chunksConfig);
   }
