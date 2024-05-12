@@ -1,10 +1,22 @@
 {
     "peers": [
         {
-            "peerId": "n0",
+            "peerId": "p_00",
+            "address": "127.0.0.1",
+            "raftPort": 10000,
+            "kvPort": 15000
+        },
+        {
+            "peerId": "p_01",
             "address": "127.0.0.1",
             "raftPort": 10001,
             "kvPort": 15001
+        },
+        {
+            "peerId": "p_02",
+            "address": "127.0.0.1",
+            "raftPort": 10002,
+            "kvPort": 15002
         }
     ]
 }

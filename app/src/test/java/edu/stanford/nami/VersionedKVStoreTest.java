@@ -85,7 +85,6 @@ public class VersionedKVStoreTest extends RocksDBTest {
     }
   }
 
-
   @Test
   void testGetAsOf_happyPath() throws RocksDBException {
     try (RocksDB db = newTransientDB()) {

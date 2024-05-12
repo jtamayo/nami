@@ -23,6 +23,10 @@ record NVKey(long tid, String key) {
     return buffer.array();
   }
 
+  public NKey nKey() {
+    return new NKey(this.key);
+  }
+
   public static NVKey fromBytes(byte[] bytes) {
     checkWellFormedKey(bytes.length > 1, "Bytes cannot be empty");
     var buffer = ByteBuffer.wrap(bytes);

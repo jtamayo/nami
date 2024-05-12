@@ -1,0 +1,5 @@
+{
+    "selfPeerId": "p_02",
+    "chunkConfigPath": "./chunks.json",
+    "peerConfigsPath": "./peers.json"
+}
