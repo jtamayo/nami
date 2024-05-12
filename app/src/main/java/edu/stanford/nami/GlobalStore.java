@@ -14,24 +14,6 @@ import java.util.Map;
 
 /**
  * Provides a single unified view of all the VersionedKVStores in the system.
- *
- * <p>To do so it needs: - The local stores - The remote stores - The cache
- *
- * <p>The next question is who's doing the writes? this guy? someone else?
- *
- * <p>Timing wise we also get into tricky issues with previous keys and such, so yeah. Kind of
- * awkward.
- *
- * <p>So assume this guy is just reading. Let's focus on that.
- *
- * <p>To read, it first hits the local store. If not there, then the cache. If not there, it needs
- * to determine which server has the data, and fetch from it.
- *
- * <p>So then each server needs a set of server clients, one for each peer. Then you map from get to
- * chunk, then from chunk to server, then you call the get, then you return.
- *
- * <p>Design decisions, I guess I should build this ok from scratch So each peer has a set of ranges
- * it can serve then we have a routing algo then we need to get a bunch of keys
  */
 public class GlobalStore {
   private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
