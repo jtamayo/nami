@@ -1,8 +1,7 @@
 package edu.stanford.nami.config;
 
-import java.util.List;
-
 import edu.stanford.nami.Chunks;
+import java.util.List;
 import lombok.Data;
 
 @Data
