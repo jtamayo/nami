@@ -1,3 +1,5 @@
 {
-    "startValue": 234
+    "selfPeerId": "n0",
+    "chunkConfigPath": "../configs/chunks.json",
+    "peerConfigsPath": "../configs/peers.json"
 }

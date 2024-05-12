@@ -1,6 +1,10 @@
 package edu.stanford.nami;
 
+import java.io.File;
 import java.util.List;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.Files;
 
 import lombok.Data;
 import lombok.experimental.UtilityClass;
@@ -8,7 +12,7 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public final class Chunks {
   @Data
-  public static final class ServerAllocation {
+  public static final class PeerAllocation {
     private String peerId;
     private List<ChunkRange> ranges;
   }
@@ -17,15 +21,5 @@ public final class Chunks {
   public static final class ChunkRange {
     private int min;
     private int max;
-  }
-
-  public Chunks.ServerAllocation loadServerAllocation(String path) {
-    var file = new File(path);
-    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
-      return gson.fromJson(reader, Chunks.ServerAllocation.class);
-
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 }

@@ -7,6 +7,11 @@ import com.google.common.base.Charsets;
 import com.google.common.io.Files;
 import com.google.common.primitives.Longs;
 import com.google.gson.Gson;
+
+import edu.stanford.nami.config.ChunksConfig;
+import edu.stanford.nami.config.PeersConfig;
+import edu.stanford.nami.config.ServerConfig;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -21,8 +26,13 @@ public class App {
   }
 
   public static void main(String[] args) {
+    System.out.println("Running in " + (new File(".").getAbsolutePath()));
     var config = loadServerConfig(args);
-    var serverAllocation = Chunks.loadServerAllocation(config.getChunkConfigPath());
+    System.out.println(config);
+    var serverAllocation = loadPeersConfig(config.getPeerConfigsPath());
+    System.out.println(serverAllocation);
+    var chunksConfig = loadChunksConfig(config.getChunkConfigPath());
+    System.out.println(chunksConfig);
   }
 
   private static ServerConfig loadServerConfig(String[] args) {
@@ -41,6 +51,26 @@ public class App {
 
     try (var reader = Files.newReader(file, Charsets.UTF_8)) {
       return new Gson().fromJson(reader, ServerConfig.class);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static PeersConfig loadPeersConfig(String path) {
+    var file = new File(path);
+    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, PeersConfig.class);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static ChunksConfig loadChunksConfig(String path) {
+    var file = new File(path);
+    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, ChunksConfig.class);
 
     } catch (IOException e) {
       throw new RuntimeException(e);

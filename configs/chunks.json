@@ -1,0 +1,13 @@
+{
+    "peerAllocations": [
+        {
+            "peerId": "n0",
+            "ranges": [
+                {
+                    "min": 0,
+                    "max": 16384
+                }
+            ]
+        }
+    ]
+}
