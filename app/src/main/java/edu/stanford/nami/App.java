@@ -15,34 +15,14 @@ import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 public class App {
+
   public String getGreeting() {
     return "Hello World!";
   }
 
   public static void main(String[] args) {
     var config = loadServerConfig(args);
-    System.out.println(Path.of(".", "hello").toAbsolutePath());
-    RocksDB.loadLibrary();
-    try (final Options options = new Options()) {
-      options.setCreateIfMissing(true);
-      try (final RocksDB db = RocksDB.open(options, "/home/jtamayo/src/dbs/test1")) {
-        // do something
-
-        var key = "hello".getBytes();
-        final byte[] value = db.get(key);
-        if (value == null) { // value == null if key1 does not exist in db.
-          System.out.println("Storing " + config.getStartValue());
-          db.put(key, Longs.toByteArray(config.getStartValue()));
-        } else {
-          var next = Longs.fromByteArray(value) + 1;
-          System.out.println("Incrementing to " + next);
-          db.put(key, Longs.toByteArray(next));
-        }
-      }
-    } catch (RocksDBException e) {
-      // do some error handling
-      throw new RuntimeException(e);
-    }
+    var serverAllocation = Chunks.loadServerAllocation(config.getChunkConfigPath());
   }
 
   private static ServerConfig loadServerConfig(String[] args) {
@@ -58,10 +38,9 @@ public class App {
       System.exit(-2);
     }
 
-    Gson gson = new Gson();
 
     try (var reader = Files.newReader(file, Charsets.UTF_8)) {
-      return gson.fromJson(reader, ServerConfig.class);
+      return new Gson().fromJson(reader, ServerConfig.class);
 
     } catch (IOException e) {
       throw new RuntimeException(e);
