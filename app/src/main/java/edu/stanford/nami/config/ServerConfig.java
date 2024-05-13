@@ -12,4 +12,10 @@ public final class ServerConfig {
 
   /** Path to the IP addresses of all peers in the cluster */
   private String peerConfigsPath;
+
+  /** Path to the folder that'll contain all data */
+  private String dataPath;
+
+  /** TODO remove this, it's just a bridge with the old config */
+  private Integer peerIndex;
 }

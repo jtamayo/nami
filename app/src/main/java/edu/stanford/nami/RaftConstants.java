@@ -30,9 +30,7 @@ public final class RaftConstants {
   private static final String CONF_FILE_NAME = "conf.properties";
   private static final List<String> CONF_FILE_DEFAULTS =
       Collections.unmodifiableList(
-          Arrays.asList(
-                  "app/src/main/resources/" + CONF_FILE_NAME
-              )); // for source tree layout
+          Arrays.asList("app/src/main/resources/" + CONF_FILE_NAME)); // for source tree layout
 
   static Path getConfPath() {
     final Stream<String> s = CONF_FILE_DEFAULTS.stream();
