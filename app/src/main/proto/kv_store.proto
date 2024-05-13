@@ -19,6 +19,7 @@ message KVStoreRequest {
   oneof Request {
     GetRequest get = 1;
     PutRequest put = 2;
+    TransactionRequest transaction = 3;
   }
 }
 
@@ -29,6 +30,30 @@ message ProtoVKey {
 
 message GetRequest {
   ProtoVKey key = 1;
+}
+
+message TransactionRequest {
+  // TID at which all the values are read
+  int64 snapshot_tid = 1;
+  repeated InTransactionGet reads = 2;
+  repeated InTransactionPut puts = 3;
+}
+
+message InTransactionGet {
+  ProtoVKey key = 1;
+  bytes value = 2;
+}
+
+message InTransactionPut {
+  ProtoVKey key = 1;
+  bytes value = 2;
+}
+
+message GetRecentRequest {
+}
+
+message GetRecentResponse {
+  int64 snapshot_tid = 1;
 }
 
 message GetResponse {
