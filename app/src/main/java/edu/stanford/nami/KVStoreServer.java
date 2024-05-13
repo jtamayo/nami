@@ -1,10 +1,15 @@
 package edu.stanford.nami;
 
+import com.google.common.base.Charsets;
+import com.google.common.io.Files;
+import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
+import edu.stanford.nami.config.ChunksConfig;
+import edu.stanford.nami.config.PeersConfig;
+import edu.stanford.nami.config.ServerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
@@ -30,24 +35,8 @@ public class KVStoreServer {
   public KVStoreServer(
       int port, RocksDB db, RaftPeer peer, File storageDir, TimeDuration simulatedSlowness)
       throws IOException {
-    this(
-        Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create()),
-        port,
-        db,
-        peer,
-        storageDir,
-        simulatedSlowness);
-  }
-
-  public KVStoreServer(
-      ServerBuilder<?> serverBuilder,
-      int port,
-      RocksDB db,
-      RaftPeer peer,
-      File storageDir,
-      TimeDuration simulatedSlowness)
-      throws IOException {
     this.port = port;
+    var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
     VersionedKVStore kvStore = new VersionedKVStore(db);
     server = serverBuilder.addService(new KVStoreService(kvStore)).build();
 
@@ -80,21 +69,9 @@ public class KVStoreServer {
     System.out.println("Server started, listening on " + port);
     raftServer.start();
     System.out.println("Raft Server started, with id " + raftServer.getId());
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread() {
-              @Override
-              public void run() {
-                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-                System.err.println("*** shutting down gRPC server since JVM is shutting down");
-                try {
-                  KVStoreServer.this.stop();
-                } catch (InterruptedException | IOException e) {
-                  e.printStackTrace(System.err);
-                }
-                System.err.println("*** server shut down");
-              }
-            });
+
+    // make sure we shut down properly
+    Runtime.getRuntime().addShutdownHook(new ShutdownHook());
   }
 
   /** Stop serving requests and shutdown resources. */
@@ -115,16 +92,46 @@ public class KVStoreServer {
   }
 
   public static void main(String[] args) throws Exception {
+    System.out.println("Running in " + (new File(".").getAbsolutePath()));
+
     if (args.length != 1) {
-      throw new IllegalArgumentException(
-          "Invalid argument number: expected to be 1 but actual is " + args.length);
+      System.err.println("Invalid usage. Usage: k-v-store-server <config_file>");
+      System.exit(-1);
     }
-    final int peerIndex = Integer.parseInt(args[0]);
-    if (peerIndex < 0 || peerIndex > 2) {
-      throw new IllegalArgumentException(
-          "The server index must be 0, 1 or 2: peerIndex=" + peerIndex);
+    var configFileName = args[0];
+    var configFile = new File(configFileName);
+
+    if (!configFile.exists()) {
+      System.err.println("File " + configFile.getAbsolutePath() + " does not exist");
+      System.exit(-2);
+    } else {
+      System.out.println("Found config file at " + configFile.getAbsolutePath());
     }
-    TimeDuration simulatedSlowness =
+
+    var config = loadServerConfig(configFile);
+    System.out.println("Loaded server config " + config);
+    var selfPeerId = config.getSelfPeerId();
+    var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
+    var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
+    var dataPath =
+        configFile
+            .getParentFile()
+            .toPath()
+            .resolve(config.getDataPath())
+            .normalize()
+            .resolve(selfPeerId);
+    System.out.println("All data will be stored in " + dataPath.toAbsolutePath());
+    if (!dataPath.toFile().exists()) {
+      System.out.println("Creating data folder " + dataPath.toAbsolutePath());
+      dataPath.toFile().mkdirs();
+    }
+    var rocksDbPath = dataPath.resolve("rocksdb");
+    var raftPath = dataPath.resolve("raft");
+    System.out.println("RocksDB data will be stored in " + rocksDbPath.toAbsolutePath());
+    System.out.println("Raft data will be stored in " + raftPath.toAbsolutePath());
+
+    final int peerIndex = config.getPeerIndex();
+    var simulatedSlowness =
         Optional.ofNullable(RaftConstants.SIMULATED_SLOWNESS)
             .map(slownessList -> slownessList.get(peerIndex))
             .orElse(TimeDuration.ZERO);
@@ -132,17 +139,44 @@ public class KVStoreServer {
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
       options.setCreateIfMissing(true);
-      try (final RocksDB db = RocksDB.open(options, "/Users/lillianma/src/dbs/test" + peerIndex)) {
+      try (var db = RocksDB.open(options, rocksDbPath.toString())) {
         // get peer and define storage dir
         final RaftPeer currentPeer = RaftConstants.PEERS.get(peerIndex);
         System.out.println("current Peer is " + currentPeer.getAddress());
         System.out.println("current Peer s client address is " + currentPeer.getClientAddress());
-        final File storageDir = new File("./" + currentPeer.getId());
-        KVStoreServer server =
+        var storageDir = raftPath.toFile();
+        var server =
             new KVStoreServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
         server.start();
         server.blockUntilShutdown();
       }
+    }
+  }
+
+  private static ServerConfig loadServerConfig(File configFile) {
+    try (var reader = Files.newReader(configFile, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, ServerConfig.class);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static PeersConfig loadPeersConfig(File configFile, String path) {
+    return loadConfig(configFile, path, PeersConfig.class);
+  }
+
+  public static ChunksConfig loadChunksConfig(File configFile, String path) {
+    return loadConfig(configFile, path, ChunksConfig.class);
+  }
+
+  public static <T> T loadConfig(File configFile, String path, Class<T> clazz) {
+    var file = configFile.getParentFile().toPath().resolve(path).toFile();
+    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, clazz);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -154,8 +188,7 @@ public class KVStoreServer {
     }
 
     @Override
-    public void get(
-        GetRequest request, StreamObserver<edu.stanford.nami.GetResponse> responseObserver) {
+    public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
       try {
         NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
         byte[] value = this.kvStore.get(nvKey);
@@ -171,6 +204,20 @@ public class KVStoreServer {
         System.out.println("Error getting:" + e.getMessage());
         responseObserver.onError(e);
       }
+    }
+  }
+
+  private class ShutdownHook extends Thread {
+    @Override
+    public void run() {
+      // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+      System.err.println("*** shutting down gRPC server since JVM is shutting down");
+      try {
+        KVStoreServer.this.stop();
+      } catch (InterruptedException | IOException e) {
+        e.printStackTrace(System.err);
+      }
+      System.err.println("*** server shut down");
     }
   }
 }

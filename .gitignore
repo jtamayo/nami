@@ -35,3 +35,7 @@ build
 n0
 n1
 n2
+
+# Ignore data folder
+kv_data
+

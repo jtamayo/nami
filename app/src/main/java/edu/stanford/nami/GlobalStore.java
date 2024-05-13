@@ -12,9 +12,7 @@ import io.grpc.InsecureChannelCredentials;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-/**
- * Provides a single unified view of all the VersionedKVStores in the system.
- */
+/** Provides a single unified view of all the VersionedKVStores in the system. */
 public class GlobalStore {
   private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
   private final String selfId;

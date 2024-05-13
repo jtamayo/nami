@@ -80,7 +80,7 @@ public final class KVStoreClient implements Closeable {
       final int serverPeerIndex = Integer.parseInt(args[0]);
       if (serverPeerIndex < 0 || serverPeerIndex > 2) {
         throw new IllegalArgumentException(
-                "The server index must be 0, 1 or 2: peerIndex=" + serverPeerIndex);
+            "The server index must be 0, 1 or 2: peerIndex=" + serverPeerIndex);
       }
       defaultPort += serverPeerIndex;
     }

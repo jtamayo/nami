@@ -19,8 +19,8 @@ public final class Chunks {
   }
 
   /**
-   * Simplest key to chunk assignment possible: first two bytes of key become the chunk. Only works because
-   * NKeys are ASCII.
+   * Simplest key to chunk assignment possible: first two bytes of key become the chunk. Only works
+   * because NKeys are ASCII.
    */
   public static final class NaiveKeyToChunkMapper implements KeyToChunkMapper {
     public static final NaiveKeyToChunkMapper INSTANCE = new NaiveKeyToChunkMapper();
