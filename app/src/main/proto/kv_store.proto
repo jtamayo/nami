@@ -13,7 +13,13 @@ service KVStore {
   // Obtains the value at a given key.
   rpc Get(GetRequest) returns (GetResponse) {}
 
-  rpc Put(PutRequest) returns (PutResponse) {}
+}
+
+message KVStoreRequest {
+  oneof Request {
+    GetRequest get = 1;
+    PutRequest put = 2;
+  }
 }
 
 message ProtoVKey {

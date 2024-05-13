@@ -39,6 +39,7 @@ dependencies {
     implementation libs.guava
     implementation 'org.apache.ratis:ratis-server:3.0.1'
     implementation 'org.apache.ratis:ratis-grpc:3.0.1'
+    implementation 'org.apache.ratis:ratis-metrics-default:3.0.1'
     implementation 'org.rocksdb:rocksdbjni:9.1.1'
     implementation 'com.google.code.gson:gson:2.10.1'
 
@@ -77,3 +78,28 @@ spotless {
         googleJavaFormat()
     }
 }
+
+
+// Creates start scripts for a class name and adds it to the distribution. The
+// base class name is used to name the task and scripts. For example, passed
+// the class io.grpc.examples.helloworld.HelloWorldClient, it creates the task
+// helloWorldClient with script name hello-world-client.
+def createStartScripts(String mainClassName) {
+    String bareName = mainClassName.substring(mainClassName.lastIndexOf('.') + 1);
+    String taskName = bareName.uncapitalize();
+    def newTask = tasks.register(taskName, CreateStartScripts) {
+        mainClass = mainClassName
+        applicationName = taskName.replaceAll('([A-Z])') { '-' + it[0].uncapitalize() }
+        outputDir = new File(project.buildDir, 'tmp/scripts/' + name)
+        classpath = startScripts.classpath
+    }
+    application {
+        applicationDistribution.into('bin') {
+            from(newTask)
+            fileMode = 0755
+        }
+    }
+}
+
+createStartScripts('edu.stanford.nami.KVStoreClient')
+createStartScripts('edu.stanford.nami.KVStoreServer')

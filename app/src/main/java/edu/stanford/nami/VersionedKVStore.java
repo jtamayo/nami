@@ -1,9 +1,9 @@
 package edu.stanford.nami;
 
+import com.google.common.base.Preconditions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
-import com.google.common.base.Preconditions;
 
 /**
  * A versioned key-value store backed by a RocksDB database. Every key is versioned by a tid, which
