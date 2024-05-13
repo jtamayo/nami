@@ -39,28 +39,26 @@ public final class KVStoreClient implements Closeable {
   }
 
   public void get(long tid, String key) {
-    ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
-    GetRequest request = GetRequest.newBuilder().setKey(protoVKey).build();
-    GetResponse response = blockingStub.get(request);
+    var protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
+    var request = GetRequest.newBuilder().setKey(protoVKey).build();
+    var response = blockingStub.get(request);
     System.out.println("Got get response: " + response.toString());
   }
 
   public static void put(long tid, String key, String value, RaftClient client) throws Exception {
     // use BlockingApi
-    ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
-    PutRequest putRequest =
-        PutRequest.newBuilder().setKey(protoVKey).setValue(ByteString.copyFromUtf8(value)).build();
-    KVStoreRequest request = KVStoreRequest.newBuilder().setPut(putRequest).build();
-    RaftClientReply reply =
-        client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
+    var protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
+    var putRequest = PutRequest.newBuilder().setKey(protoVKey).setValue(ByteString.copyFromUtf8(value)).build();
+    var request = KVStoreRequest.newBuilder().setPut(putRequest).build();
+    var reply = client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 
     if (reply == null || !reply.isSuccess()) {
       System.err.println("Failed to get counter from " + client.getId() + " with reply = " + reply);
       return;
     }
 
-    final ByteBuffer putValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
-    PutResponse response = PutResponse.parseFrom(putValue);
+    var putValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
+    var response = PutResponse.parseFrom(putValue);
     System.out.println("Got put response: " + response.toString());
   }
 
@@ -74,8 +72,8 @@ public final class KVStoreClient implements Closeable {
 
   /** Issues several different requests and then exits. */
   public static void main(String[] args) throws InterruptedException {
-    String targetHost = "localhost";
-    int defaultPort = 8980;
+    var targetHost = "localhost";
+    var defaultPort = 8980;
     if (args.length > 0) {
       final int serverPeerIndex = Integer.parseInt(args[0]);
       if (serverPeerIndex < 0 || serverPeerIndex > 2) {
@@ -84,10 +82,9 @@ public final class KVStoreClient implements Closeable {
       }
       defaultPort += serverPeerIndex;
     }
-    String target = targetHost + ":" + defaultPort;
+    var target = targetHost + ":" + defaultPort;
 
-    ManagedChannel channel =
-        Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
+    var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
     try (KVStoreClient client = new KVStoreClient(channel)) {
       client.put(0, 1, "test1", "testvalue1");
       client.get(1, "test1");

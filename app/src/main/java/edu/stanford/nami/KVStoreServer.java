@@ -48,7 +48,7 @@ public class KVStoreServer {
       TimeDuration simulatedSlowness)
       throws IOException {
     this.port = port;
-    VersionedKVStore kvStore = new VersionedKVStore(db);
+    var kvStore = new VersionedKVStore(db);
     server = serverBuilder.addService(new KVStoreService(kvStore)).build();
 
     // create a property object
@@ -124,22 +124,21 @@ public class KVStoreServer {
       throw new IllegalArgumentException(
           "The server index must be 0, 1 or 2: peerIndex=" + peerIndex);
     }
-    TimeDuration simulatedSlowness =
+    var simulatedSlowness =
         Optional.ofNullable(RaftConstants.SIMULATED_SLOWNESS)
             .map(slownessList -> slownessList.get(peerIndex))
             .orElse(TimeDuration.ZERO);
 
     RocksDB.loadLibrary();
-    try (final Options options = new Options()) {
+    try (var options = new Options()) {
       options.setCreateIfMissing(true);
-      try (final RocksDB db = RocksDB.open(options, "/Users/lillianma/src/dbs/test" + peerIndex)) {
+      try (var db = RocksDB.open(options, "/Users/lillianma/src/dbs/test" + peerIndex)) {
         // get peer and define storage dir
-        final RaftPeer currentPeer = RaftConstants.PEERS.get(peerIndex);
+        var currentPeer = RaftConstants.PEERS.get(peerIndex);
         System.out.println("current Peer is " + currentPeer.getAddress());
         System.out.println("current Peer s client address is " + currentPeer.getClientAddress());
-        final File storageDir = new File("./" + currentPeer.getId());
-        KVStoreServer server =
-            new KVStoreServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
+        var storageDir = new File("./" + currentPeer.getId());
+        var server = new KVStoreServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
         server.start();
         server.blockUntilShutdown();
       }
@@ -154,11 +153,10 @@ public class KVStoreServer {
     }
 
     @Override
-    public void get(
-        GetRequest request, StreamObserver<edu.stanford.nami.GetResponse> responseObserver) {
+    public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
       try {
-        NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-        byte[] value = this.kvStore.get(nvKey);
+        var nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
+        var value = this.kvStore.get(nvKey);
         GetResponse response;
         if (value == null) {
           response = GetResponse.newBuilder().build();
