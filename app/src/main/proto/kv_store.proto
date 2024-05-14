@@ -6,13 +6,9 @@ option java_outer_classname = "KVStoreProto";
 
 package kvstore;
 
-// Interface exported by the server.
 service KVStore {
-  // A simple RPC.
-  //
   // Obtains the value at a given key.
   rpc Get(GetRequest) returns (GetResponse) {}
-
 }
 
 message KVStoreRequest {
@@ -49,11 +45,11 @@ message InTransactionPut {
   bytes value = 2;
 }
 
-message GetRecentRequest {
+message GetRecentTidRequest {
 }
 
-message GetRecentResponse {
-  int64 snapshot_tid = 1;
+message GetRecentTidResponse {
+  int64 tid = 1;
 }
 
 message GetResponse {
