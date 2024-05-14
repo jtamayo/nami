@@ -1,6 +1,7 @@
 package edu.stanford.nami.client;
 
 import edu.stanford.nami.NKey;
+import edu.stanford.nami.NamiClient;
 import java.nio.ByteBuffer;
 
 public final class ClientTransaction {
@@ -27,7 +28,7 @@ public final class ClientTransaction {
   }
 
   // start a new transaction against the provided Nami cluster
-  public static ClientTransaction begin(NamiConnection connection) {
+  public static ClientTransaction begin(NamiClient namiClient) {
     // TODO connect to nami, get a recent snapshot tid, pass it here
     return new ClientTransaction(0);
   }
