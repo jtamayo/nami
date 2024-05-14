@@ -4,9 +4,6 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.google.protobuf.ByteString;
 import io.grpc.Channel;
-import io.grpc.Grpc;
-import io.grpc.InsecureChannelCredentials;
-import io.grpc.ManagedChannel;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -16,7 +13,7 @@ import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientReply;
 
-public final class KVStoreClient implements Closeable {
+public final class NamiClient implements Closeable {
   private final KVStoreGrpc.KVStoreBlockingStub blockingStub;
 
   private final RaftClient client = newClient();
@@ -34,7 +31,7 @@ public final class KVStoreClient implements Closeable {
         .build();
   }
 
-  public KVStoreClient(Channel channel) {
+  public NamiClient(Channel channel) {
     blockingStub = KVStoreGrpc.newBlockingStub(channel);
   }
 
@@ -69,33 +66,6 @@ public final class KVStoreClient implements Closeable {
       put(tid, key, value, client);
     } catch (Exception e) {
       throw new CompletionException(e);
-    }
-  }
-
-  /** Issues several different requests and then exits. */
-  public static void main(String[] args) throws InterruptedException {
-    String targetHost = "localhost";
-    int defaultPort = 8980;
-    if (args.length > 0) {
-      final int serverPeerIndex = Integer.parseInt(args[0]);
-      if (serverPeerIndex < 0 || serverPeerIndex > 2) {
-        throw new IllegalArgumentException(
-            "The server index must be 0, 1 or 2: peerIndex=" + serverPeerIndex);
-      }
-      defaultPort += serverPeerIndex;
-    }
-    String target = targetHost + ":" + defaultPort;
-
-    ManagedChannel channel =
-        Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
-    try (KVStoreClient client = new KVStoreClient(channel)) {
-      client.put(0, 1, "test1", "testvalue1");
-      client.get(1, "test1");
-      System.out.println("Finished getting the value");
-    } catch (Throwable e) {
-      e.printStackTrace();
-    } finally {
-      channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
     }
   }
 }
