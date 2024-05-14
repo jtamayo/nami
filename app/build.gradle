@@ -102,4 +102,4 @@ def createStartScripts(String mainClassName) {
 }
 
 createStartScripts('edu.stanford.nami.KVStoreClient')
-createStartScripts('edu.stanford.nami.KVStoreServer')
+createStartScripts('edu.stanford.nami.NamiServer')
