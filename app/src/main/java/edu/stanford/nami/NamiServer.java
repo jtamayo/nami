@@ -27,12 +27,12 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
-public class KVStoreServer {
+public class NamiServer {
   private final int port;
   private final Server server;
   private final RaftServer raftServer;
 
-  public KVStoreServer(
+  public NamiServer(
       int port, RocksDB db, RaftPeer peer, File storageDir, TimeDuration simulatedSlowness)
       throws IOException {
     this.port = port;
@@ -146,7 +146,7 @@ public class KVStoreServer {
         System.out.println("current Peer s client address is " + currentPeer.getClientAddress());
         var storageDir = raftPath.toFile();
         var server =
-            new KVStoreServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
+            new NamiServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
         server.start();
         server.blockUntilShutdown();
       }
@@ -213,7 +213,7 @@ public class KVStoreServer {
       // Use stderr here since the logger may have been reset by its JVM shutdown hook.
       System.err.println("*** shutting down gRPC server since JVM is shutting down");
       try {
-        KVStoreServer.this.stop();
+        NamiServer.this.stop();
       } catch (InterruptedException | IOException e) {
         e.printStackTrace(System.err);
       }
