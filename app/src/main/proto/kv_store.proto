@@ -9,6 +9,9 @@ package kvstore;
 service KVStore {
   // Obtains the value at a given key.
   rpc Get(GetRequest) returns (GetResponse) {}
+
+  // Returns a recently committed tid
+  rpc GetRecentTid(GetRecentTidRequest) returns (GetRecentTidResponse) {}
 }
 
 message KVStoreRequest {
@@ -36,12 +39,12 @@ message TransactionRequest {
 }
 
 message InTransactionGet {
-  ProtoVKey key = 1;
+  string key = 1;
   bytes value = 2;
 }
 
 message InTransactionPut {
-  ProtoVKey key = 1;
+  string key = 1;
   bytes value = 2;
 }
 
