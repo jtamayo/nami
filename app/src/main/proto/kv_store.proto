@@ -14,11 +14,19 @@ service KVStore {
   rpc GetRecentTid(GetRecentTidRequest) returns (GetRecentTidResponse) {}
 }
 
-message KVStoreRequest {
+message KVStoreRaftRequest {
   oneof Request {
     GetRequest get = 1;
     PutRequest put = 2;
     TransactionRequest transaction = 3;
+  }
+}
+
+message KVStoreRaftResponse {
+  oneof Response {
+    GetResponse get = 1;
+    PutResponse put = 2;
+    TransactionResponse transaction = 3;
   }
 }
 
@@ -37,6 +45,12 @@ message TransactionRequest {
   repeated InTransactionGet reads = 2;
   repeated InTransactionPut puts = 3;
 }
+
+message TransactionResponse {
+  LillianChangesThisTxStatus status = 1;
+}
+
+enum LillianChangesThisTxStatus {}
 
 message InTransactionGet {
   string key = 1;
