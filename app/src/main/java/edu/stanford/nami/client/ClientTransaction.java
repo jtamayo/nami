@@ -11,29 +11,22 @@ public final class ClientTransaction {
     this.snapshotTid = snapshotTid;
   }
 
-  /*
-     * get(Pkey): returns value at the latest committed version - return will include value and version?
-  put(Pkey, value): Puts value into Pkey at next available version - return will include value and version?
-  startTransaction(): returns a ClientTransaction object with the latest committed tid
-
-  ClientTransaction.commit(): assembles a <> object, sends it through RAFT client. Returns status (COMMITTED/ABORTED/ERROR) and tid.
-
-     */
+  // get value as of snapshotTid and store the read key/value in memory so we can send it to
+  // server later
+  // TODO what do we do if the key doesn't exist? do we handle "null values"?
   public ByteBuffer get(NKey key) {
-    // get value as of snapshotTid and store the read key/value in memory so we can send it to
-    // server later
-    // TODO what do we do if the key doesn't exist? do we handle "null values"?
     throw new RuntimeException("not implemented");
   }
 
-  public void put(NKey key, ByteBuffer value) {
-    // store the value in memory under the given key so we can send it to the server later
-  }
+  // store the value in memory under the given key so we can send it to the server later
+  public void put(NKey key, ByteBuffer value) {}
 
+  // Attempt to commit this transaction to the server
   public CommitOutcome commit() {
     throw new RuntimeException("not implemented");
   }
 
+  // start a new transaction against the provided Nami cluster
   public static ClientTransaction begin(NamiConnection connection) {
     // TODO connect to nami, get a recent snapshot tid, pass it here
     return new ClientTransaction(0);
