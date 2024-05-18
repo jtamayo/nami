@@ -107,7 +107,7 @@ public final class NamiClient implements Closeable {
     ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
     PutRequest putRequest =
         PutRequest.newBuilder().setKey(protoVKey).setValue(ByteString.copyFromUtf8(value)).build();
-        KVStoreRaftRequest request = KVStoreRaftRequest.newBuilder().setPut(putRequest).build();
+    KVStoreRaftRequest request = KVStoreRaftRequest.newBuilder().setPut(putRequest).build();
     RaftClientReply reply =
         client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 

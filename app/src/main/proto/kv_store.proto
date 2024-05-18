@@ -48,11 +48,12 @@ message TransactionRequest {
 }
 
 message TransactionResponse {
-  LillianChangesThisTxStatus status = 1;
+  TransactionStatus status = 1;
 }
 
-enum LillianChangesThisTxStatus {
-  OMG = 0;
+enum TransactionStatus {
+  COMMITTED = 0;
+  CONFLICT_ABORTED = 1;
 }
 
 message InTransactionGet {

@@ -5,6 +5,7 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
@@ -20,9 +21,11 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.JavaUtils;
 import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.Status;
 
 public class KVStoreStateMachine extends BaseStateMachine {
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
+  private static final int NUM_DB_RETRIES = 3;
 
   // For testing only
   private final TimeDuration simulatedSlowness;
@@ -105,7 +108,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private CompletableFuture<Message> put(long index, PutRequest request) {
+  private CompletableFuture<Message> processPut(long index, PutRequest request) {
     NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
     com.google.protobuf.ByteString value = request.getValue();
     try {
@@ -117,6 +120,91 @@ public class KVStoreStateMachine extends BaseStateMachine {
       System.out.println("Error putting:" + e.getMessage());
       return CompletableFuture.completedFuture(Message.EMPTY);
     }
+  }
+
+  private boolean processInTransactionGet(long tid, InTransactionGet inTransactionGet)
+      throws RocksDBException {
+    NKey nKey = new NKey(inTransactionGet.getKey());
+    byte[] value;
+    int numRetries = 0;
+    while (true) {
+      try {
+        value = this.kvStore.getAsOf(nKey, tid);
+        break;
+      } catch (RocksDBException e) {
+        // Fix this to capture transient errors vs un-retriable errors
+        if (numRetries <= NUM_DB_RETRIES
+            && (e.getStatus().getCode() == Status.Code.Aborted
+                || e.getStatus().getCode() == Status.Code.Expired
+                || e.getStatus().getCode() == Status.Code.TimedOut)) {
+          numRetries++;
+          System.out.println(
+              "Retrying get: " + numRetries + " out of " + NUM_DB_RETRIES + " times");
+          continue;
+        }
+        throw e;
+      }
+    }
+    return value != null && Arrays.equals(value, inTransactionGet.getValue().toByteArray());
+  }
+
+  private void processInTransactionPut(long index, InTransactionPut inTransactionPut)
+      throws RocksDBException {
+    NVKey nvKey = new NVKey(index, inTransactionPut.getKey());
+    com.google.protobuf.ByteString value = inTransactionPut.getValue();
+    int numRetries = 0;
+    while (true) {
+      try {
+        this.kvStore.put(nvKey, value.toByteArray());
+        break;
+      } catch (RocksDBException e) {
+        // Fix this to capture transient errors vs un-retriable errors?
+        if (numRetries <= NUM_DB_RETRIES
+            && (e.getStatus().getCode() == Status.Code.Aborted
+                || e.getStatus().getCode() == Status.Code.Expired
+                || e.getStatus().getCode() == Status.Code.TimedOut)) {
+          numRetries++;
+          System.out.println("Retrying put: " + numRetries + " time");
+          continue;
+        }
+        // Eventually give up?
+        throw e;
+      }
+    }
+  }
+
+  private CompletableFuture<Message> processTransaction(long index, TransactionRequest request) {
+    long snapshotTid = request.getSnapshotTid();
+    for (InTransactionGet inTransactionGet : request.getReadsList()) {
+      try {
+        if (!this.processInTransactionGet(snapshotTid, inTransactionGet)) {
+          ByteString byteString =
+              convertToRatisByteString(
+                  TransactionResponse.newBuilder()
+                      .setStatus(TransactionStatus.CONFLICT_ABORTED)
+                      .build()
+                      .toByteString());
+          return CompletableFuture.completedFuture(Message.valueOf(byteString));
+        }
+      } catch (RocksDBException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    for (InTransactionPut inTransactionPut : request.getPutsList()) {
+      try {
+        this.processInTransactionPut(index, inTransactionPut);
+      } catch (RocksDBException e) {
+        // A problem we need to handle if DB is down continuously?
+        throw new RuntimeException(e);
+      }
+    }
+    ByteString byteString =
+        convertToRatisByteString(
+            TransactionResponse.newBuilder()
+                .setStatus(TransactionStatus.COMMITTED)
+                .build()
+                .toByteString());
+    return CompletableFuture.completedFuture(Message.valueOf(byteString));
   }
 
   /**
@@ -145,7 +233,9 @@ public class KVStoreStateMachine extends BaseStateMachine {
 
     switch (request.getRequestCase()) {
       case PUT:
-        return put(index, request.getPut());
+        return processPut(index, request.getPut());
+      case TRANSACTION:
+        return processTransaction(index, request.getTransaction());
       default:
         System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
         return JavaUtils.completeExceptionally(
