@@ -1,11 +1,8 @@
 package edu.stanford.nami.client;
 
 import com.google.protobuf.ByteString;
-import edu.stanford.nami.InTransactionGet;
-import edu.stanford.nami.InTransactionPut;
-import edu.stanford.nami.NKey;
-import edu.stanford.nami.NamiClient;
-import edu.stanford.nami.TransactionRequest;
+import edu.stanford.nami.*;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -49,26 +46,9 @@ public final class ClientTransaction {
   }
 
   // Attempt to commit this transaction to the server
-  public CommitOutcome commit() {
-    var txBuilder = TransactionRequest.newBuilder();
-    txBuilder.setSnapshotTid(snapshotTid);
-    for (var readValue : readValues.entrySet()) {
-      var inTxGetBuilder =
-          InTransactionGet.newBuilder()
-              .setKey(readValue.getKey().key())
-              .setValue(readValue.getValue());
-      txBuilder.addReads(inTxGetBuilder);
-    }
-    for (var readValue : writtenValues.entrySet()) {
-      var inTxPutBuilder =
-          InTransactionPut.newBuilder()
-              .setKey(readValue.getKey().key())
-              .setValue(readValue.getValue());
-      txBuilder.addPuts(inTxPutBuilder);
-    }
-    var committed = namiClient.commit(snapshotTid, readValues, writtenValues);
-    // TODO actually commit the transaction to server
-    return CommitOutcome.COMMITTED;
+  public TransactionStatus commit() {
+    var response = namiClient.commit(snapshotTid, readValues, writtenValues);
+    return response.getStatus();
   }
 
   // start a new transaction against the provided Nami cluster
@@ -77,19 +57,4 @@ public final class ClientTransaction {
     return new ClientTransaction(namiClient, recentTid);
   }
 
-  enum CommitOutcome {
-    /** All the writes in the transaction were applied. */
-    COMMITTED,
-    /**
-     * None of the writes in the transaction were applied because the transaction conflicted with
-     * others that came before it. It's ok to retry the entire application logic.
-     */
-    CONFLICTING_ABORTED,
-    /**
-     * The server connection died before this client discovered the outcome of this transaction. It
-     * may or may not have been applied. It's not safe to retry the application operation, and an
-     * error should be shown.
-     */
-    UNKNOWN,
-  }
 }
