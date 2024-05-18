@@ -102,7 +102,8 @@ public class KVStoreStateMachine extends BaseStateMachine {
     ByteString logData = entry.getStateMachineLogEntry().getLogData();
     ByteBuffer readOnlyByteBuffer = logData.asReadOnlyByteBuffer();
     try {
-      return KVStoreRaftRequest.parseFrom(com.google.protobuf.ByteString.copyFrom(readOnlyByteBuffer));
+      return KVStoreRaftRequest.parseFrom(
+          com.google.protobuf.ByteString.copyFrom(readOnlyByteBuffer));
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw new IllegalArgumentException("Failed to parse data, entry=" + entry, e);
     }

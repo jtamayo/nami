@@ -1,16 +1,13 @@
 package edu.stanford.nami.client;
 
+import com.google.protobuf.ByteString;
 import edu.stanford.nami.InTransactionGet;
 import edu.stanford.nami.InTransactionPut;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionRequest;
-
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
-
-import com.google.protobuf.ByteString;
 
 public final class ClientTransaction {
   /** tid as of which all reads are done */
@@ -56,11 +53,17 @@ public final class ClientTransaction {
     var txBuilder = TransactionRequest.newBuilder();
     txBuilder.setSnapshotTid(snapshotTid);
     for (var readValue : readValues.entrySet()) {
-      var inTxGetBuilder = InTransactionGet.newBuilder().setKey(readValue.getKey().key()).setValue(readValue.getValue());
+      var inTxGetBuilder =
+          InTransactionGet.newBuilder()
+              .setKey(readValue.getKey().key())
+              .setValue(readValue.getValue());
       txBuilder.addReads(inTxGetBuilder);
     }
     for (var readValue : writtenValues.entrySet()) {
-      var inTxPutBuilder = InTransactionPut.newBuilder().setKey(readValue.getKey().key()).setValue(readValue.getValue());
+      var inTxPutBuilder =
+          InTransactionPut.newBuilder()
+              .setKey(readValue.getKey().key())
+              .setValue(readValue.getValue());
       txBuilder.addPuts(inTxPutBuilder);
     }
     var committed = namiClient.commit(snapshotTid, readValues, writtenValues);

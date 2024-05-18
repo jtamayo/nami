@@ -2,21 +2,19 @@ package edu.stanford.nami.examples;
 
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
-
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.client.ClientTransaction;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
-import lombok.RequiredArgsConstructor;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public final class BankingApp {

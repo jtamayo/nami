@@ -12,8 +12,8 @@ import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -26,8 +26,6 @@ import org.apache.ratis.util.NetUtils;
 import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-
 
 public class NamiServer {
   private final int port;
@@ -216,7 +214,8 @@ public class NamiServer {
     }
 
     @Override
-    public void getRecentTid(GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
+    public void getRecentTid(
+        GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
       // TODO expose a recent tid
       var response = GetRecentTidResponse.newBuilder().setTid(1).build();
       responseObserver.onNext(response);
