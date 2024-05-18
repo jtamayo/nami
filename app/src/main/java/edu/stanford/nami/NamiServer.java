@@ -12,6 +12,7 @@ import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+
 
 public class NamiServer {
   private final int port;
@@ -189,21 +191,36 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
-      try {
-        NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-        byte[] value = this.kvStore.get(nvKey);
-        GetResponse response;
-        if (value == null) {
-          response = GetResponse.newBuilder().build();
-        } else {
-          response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
-        }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-      } catch (RocksDBException e) {
-        System.out.println("Error getting:" + e.getMessage());
-        responseObserver.onError(e);
-      }
+      // TODO interact with kv store
+      var buffer = ByteBuffer.allocate(8);
+      buffer.putLong(0);
+      buffer.rewind();
+      var response = GetResponse.newBuilder().setValue(ByteString.copyFrom(buffer)).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+      // try {
+      //   NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
+      //   byte[] value = this.kvStore.get(nvKey);
+      //   GetResponse response;
+      //   if (value == null) {
+      //     response = GetResponse.newBuilder().build();
+      //   } else {
+      //     response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
+      //   }
+      //   responseObserver.onNext(response);
+      //   responseObserver.onCompleted();
+      // } catch (RocksDBException e) {
+      //   System.out.println("Error getting:" + e.getMessage());
+      //   responseObserver.onError(e);
+      // }
+    }
+
+    @Override
+    public void getRecentTid(GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
+      // TODO expose a recent tid
+      var response = GetRecentTidResponse.newBuilder().setTid(1).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
     }
   }
 
