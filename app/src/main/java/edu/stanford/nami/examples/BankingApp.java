@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
+import edu.stanford.nami.TransactionStatus;
 import edu.stanford.nami.client.ClientTransaction;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
@@ -23,6 +24,7 @@ public final class BankingApp {
   public static final int TX_PER_THREAD = 100;
   public static final int MOVES_PER_TX = 10;
   public static final int MAX_MOVED_AMOUNT = 100;
+  public static final int MAX_RETRIES = 100;
 
   private final NamiClient client;
 
@@ -115,8 +117,20 @@ public final class BankingApp {
     }
 
     private void moveMoney() {
+      int numRetries = 0;
+      while (numRetries < MAX_RETRIES) {
+        var tx = ClientTransaction.begin(client);
+        moveMoneyInTransaction(tx);
+        TransactionStatus outcome = tx.commit();
+        if (outcome == TransactionStatus.COMMITTED) {
+          break;
+        }
+        numRetries++;
+      }
+    }
+
+    private void moveMoneyInTransaction(ClientTransaction tx) {
       var maxIndex = accountKeys.size();
-      var tx = ClientTransaction.begin(client);
 
       for (int i = 0; i < MOVES_PER_TX; i++) {
         // pick two accounts at random, move random amount between them
@@ -137,8 +151,6 @@ public final class BankingApp {
         writeBalance(tx, fromAccount, oldFromBalance - transferAmount);
         writeBalance(tx, toAccount, oldToBalance + transferAmount);
       }
-
-      tx.commit();
     }
   }
 

@@ -10,6 +10,7 @@ service KVStore {
   // Obtains the value at a given key.
   rpc Get(GetRequest) returns (GetResponse) {}
 
+  // TODO: Maybe rename?
   // Returns a recently committed tid
   rpc GetRecentTid(GetRecentTidRequest) returns (GetRecentTidResponse) {}
 }

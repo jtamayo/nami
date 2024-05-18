@@ -53,7 +53,7 @@ public final class NamiClient implements Closeable {
     return response.getValue();
   }
 
-  public boolean commit(
+  public TransactionResponse commit(
       long snapshotTid, Map<NKey, ByteString> readValues, Map<NKey, ByteString> writtenValues) {
     var builder = TransactionRequest.newBuilder();
     builder.setSnapshotTid(snapshotTid);
@@ -76,12 +76,10 @@ public final class NamiClient implements Closeable {
 
     var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
     // TODO this response is incorrect, it shouldn't be a put
-    var putResponse = submitRaftRequest(raftRequest);
-
-    return true;
+    return submitRaftRequest(raftRequest).getTransaction();
   }
 
-  private PutResponse submitRaftRequest(KVStoreRaftRequest request) {
+  private KVStoreRaftResponse submitRaftRequest(KVStoreRaftRequest request) {
     var raftMessage = Message.valueOf(convertToRatisByteString(request.toByteString()));
 
     try {
@@ -93,8 +91,8 @@ public final class NamiClient implements Closeable {
         throw new RuntimeException();
       }
 
-      final ByteBuffer putValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
-      return PutResponse.parseFrom(putValue);
+      final ByteBuffer raftValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
+      return KVStoreRaftResponse.parseFrom(raftValue);
     } catch (InvalidProtocolBufferException e) {
       throw new RuntimeException("Error parsing raft response", e);
     } catch (IOException e) {

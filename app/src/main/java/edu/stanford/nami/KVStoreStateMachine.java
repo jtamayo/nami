@@ -181,8 +181,10 @@ public class KVStoreStateMachine extends BaseStateMachine {
         if (!this.processInTransactionGet(snapshotTid, inTransactionGet)) {
           ByteString byteString =
               convertToRatisByteString(
-                  TransactionResponse.newBuilder()
-                      .setStatus(TransactionStatus.CONFLICT_ABORTED)
+                  KVStoreRaftResponse.newBuilder()
+                      .setTransaction(
+                          TransactionResponse.newBuilder()
+                              .setStatus(TransactionStatus.CONFLICT_ABORTED))
                       .build()
                       .toByteString());
           return CompletableFuture.completedFuture(Message.valueOf(byteString));
@@ -201,8 +203,9 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
     ByteString byteString =
         convertToRatisByteString(
-            TransactionResponse.newBuilder()
-                .setStatus(TransactionStatus.COMMITTED)
+            KVStoreRaftResponse.newBuilder()
+                .setTransaction(
+                    TransactionResponse.newBuilder().setStatus(TransactionStatus.COMMITTED))
                 .build()
                 .toByteString());
     return CompletableFuture.completedFuture(Message.valueOf(byteString));
