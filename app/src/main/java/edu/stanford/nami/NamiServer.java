@@ -26,6 +26,7 @@ import org.apache.ratis.util.NetUtils;
 import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 
 public class NamiServer {
   private final int port;
@@ -189,28 +190,21 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
-      // TODO interact with kv store
-      var buffer = ByteBuffer.allocate(8);
-      buffer.putLong(0);
-      buffer.rewind();
-      var response = GetResponse.newBuilder().setValue(ByteString.copyFrom(buffer)).build();
-      responseObserver.onNext(response);
-      responseObserver.onCompleted();
-      // try {
-      //   NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-      //   byte[] value = this.kvStore.get(nvKey);
-      //   GetResponse response;
-      //   if (value == null) {
-      //     response = GetResponse.newBuilder().build();
-      //   } else {
-      //     response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
-      //   }
-      //   responseObserver.onNext(response);
-      //   responseObserver.onCompleted();
-      // } catch (RocksDBException e) {
-      //   System.out.println("Error getting:" + e.getMessage());
-      //   responseObserver.onError(e);
-      // }
+       try {
+         NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
+         byte[] value = this.kvStore.get(nvKey);
+         GetResponse response;
+         if (value == null) {
+           response = GetResponse.newBuilder().build();
+         } else {
+           response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
+         }
+         responseObserver.onNext(response);
+         responseObserver.onCompleted();
+       } catch (RocksDBException e) {
+         System.out.println("Error getting:" + e.getMessage());
+         responseObserver.onError(e);
+       }
     }
 
     @Override
