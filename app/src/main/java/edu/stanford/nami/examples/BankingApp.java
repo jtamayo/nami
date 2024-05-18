@@ -19,12 +19,12 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public final class BankingApp {
-  public static final int THREADS = 1;
-  public static final int ACCOUNTS = 1000;
-  public static final int TX_PER_THREAD = 100;
+  public static final int THREADS = 10;
+  public static final int ACCOUNTS = 100;
+  public static final int TX_PER_THREAD = 10;
   public static final int MOVES_PER_TX = 10;
   public static final int MAX_MOVED_AMOUNT = 100;
-  public static final int MAX_RETRIES = 100;
+  public static final int MAX_RETRIES = 20;
 
   private final NamiClient client;
 
@@ -85,6 +85,7 @@ public final class BankingApp {
       writeBalance(tx, accountKey, 0);
       accountKeys.add(accountKey);
     }
+    tx.commit();
 
     return accountKeys;
   }
@@ -93,11 +94,19 @@ public final class BankingApp {
   private void validateZeroNetBalance(List<String> accountKeys) {
     // begin tx so we know all values are consistent
     var tx = ClientTransaction.begin(client);
-    var netBalance = 0L;
+    var positiveBalance = 0L;
+    var negativeBalance = 0L;
     for (String accountKey : accountKeys) {
-      netBalance += readBalance(tx, accountKey);
+      var balance = readBalance(tx, accountKey);
+      if (balance > 0) {
+        positiveBalance += balance;
+      } else {
+        negativeBalance += balance;
+      }
     }
-    Preconditions.checkState(netBalance == 0, "Net balance for accounts was not zero");
+    System.out.println("Positive balance: " + positiveBalance);
+    System.out.println("Negative balance: " + negativeBalance);
+    Preconditions.checkState(positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
   }
 
   @RequiredArgsConstructor
@@ -125,6 +134,7 @@ public final class BankingApp {
         if (outcome == TransactionStatus.COMMITTED) {
           break;
         }
+        System.out.println("Worker " + workerIndex + " encountered a conflict, retrying...");
         numRetries++;
       }
     }
