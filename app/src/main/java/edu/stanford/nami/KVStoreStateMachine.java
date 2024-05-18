@@ -78,16 +78,16 @@ public class KVStoreStateMachine extends BaseStateMachine {
     System.out.println("Starting transaction");
     final ByteString content = request.getMessage().getContent();
     final com.google.protobuf.ByteString googleContent = convertToGoogleByteString(content);
-    final KVStoreRequest proto = KVStoreRequest.parseFrom(googleContent);
+    final KVStoreRaftRequest proto = KVStoreRaftRequest.parseFrom(googleContent);
     final TransactionContext.Builder b =
         TransactionContext.newBuilder().setStateMachine(this).setClientRequest(request);
     b.setLogData(content).setStateMachineContext(proto);
     return b.build();
   }
 
-  static KVStoreRequest getProto(TransactionContext context, RaftProtos.LogEntryProto entry) {
+  static KVStoreRaftRequest getProto(TransactionContext context, RaftProtos.LogEntryProto entry) {
     if (context != null) {
-      final KVStoreRequest proto = (KVStoreRequest) context.getStateMachineContext();
+      final KVStoreRaftRequest proto = (KVStoreRaftRequest) context.getStateMachineContext();
       if (proto != null) {
         return proto;
       }
@@ -95,11 +95,11 @@ public class KVStoreStateMachine extends BaseStateMachine {
     return getProto(entry);
   }
 
-  static KVStoreRequest getProto(RaftProtos.LogEntryProto entry) {
+  static KVStoreRaftRequest getProto(RaftProtos.LogEntryProto entry) {
     ByteString logData = entry.getStateMachineLogEntry().getLogData();
     ByteBuffer readOnlyByteBuffer = logData.asReadOnlyByteBuffer();
     try {
-      return KVStoreRequest.parseFrom(com.google.protobuf.ByteString.copyFrom(readOnlyByteBuffer));
+      return KVStoreRaftRequest.parseFrom(com.google.protobuf.ByteString.copyFrom(readOnlyByteBuffer));
     } catch (com.google.protobuf.InvalidProtocolBufferException e) {
       throw new IllegalArgumentException("Failed to parse data, entry=" + entry, e);
     }
@@ -133,7 +133,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     updateLastAppliedTermIndex(entry.getTerm(), index);
 
     final TermIndex termIndex = TermIndex.valueOf(entry);
-    final KVStoreRequest request = getProto(trx, entry);
+    final KVStoreRaftRequest request = getProto(trx, entry);
 
     // if leader, log the transaction and the term-index
     if (trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER) {

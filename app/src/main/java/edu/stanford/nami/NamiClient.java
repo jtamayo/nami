@@ -74,14 +74,14 @@ public final class NamiClient implements Closeable {
       builder.addPuts(inTransactionPut);
     }
 
-    var raftRequest = KVStoreRequest.newBuilder().setTransaction(builder).build();
+    var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
     // TODO this response is incorrect, it shouldn't be a put
     var putResponse = submitRaftRequest(raftRequest);
 
     return true;
   }
 
-  private PutResponse submitRaftRequest(KVStoreRequest request) {
+  private PutResponse submitRaftRequest(KVStoreRaftRequest request) {
     var raftMessage = Message.valueOf(convertToRatisByteString(request.toByteString()));
 
     try {
@@ -107,7 +107,7 @@ public final class NamiClient implements Closeable {
     ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
     PutRequest putRequest =
         PutRequest.newBuilder().setKey(protoVKey).setValue(ByteString.copyFromUtf8(value)).build();
-    KVStoreRequest request = KVStoreRequest.newBuilder().setPut(putRequest).build();
+        KVStoreRaftRequest request = KVStoreRaftRequest.newBuilder().setPut(putRequest).build();
     RaftClientReply reply =
         client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 

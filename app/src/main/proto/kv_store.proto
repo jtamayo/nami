@@ -51,7 +51,9 @@ message TransactionResponse {
   LillianChangesThisTxStatus status = 1;
 }
 
-enum LillianChangesThisTxStatus {}
+enum LillianChangesThisTxStatus {
+  OMG = 0;
+}
 
 message InTransactionGet {
   string key = 1;
