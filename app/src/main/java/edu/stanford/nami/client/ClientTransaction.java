@@ -1,36 +1,77 @@
 package edu.stanford.nami.client;
 
+import edu.stanford.nami.InTransactionGet;
+import edu.stanford.nami.InTransactionPut;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
+import edu.stanford.nami.TransactionRequest;
+
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.protobuf.ByteString;
 
 public final class ClientTransaction {
   /** tid as of which all reads are done */
   private final long snapshotTid;
 
-  private ClientTransaction(long snapshotTid) {
+  private final NamiClient namiClient;
+
+  private final Map<NKey, ByteString> readValues = new HashMap<>();
+  private final Map<NKey, ByteString> writtenValues = new HashMap<>();
+
+  private ClientTransaction(NamiClient namiClient, long snapshotTid) {
     this.snapshotTid = snapshotTid;
+    this.namiClient = namiClient;
   }
 
   // get value as of snapshotTid and store the read key/value in memory so we can send it to
   // server later
   // TODO what do we do if the key doesn't exist? do we handle "null values"?
-  public ByteBuffer get(NKey key) {
-    throw new RuntimeException("not implemented");
+  public ByteString get(NKey key) {
+    // first check if we've written it before
+    if (writtenValues.containsKey(key)) {
+      return writtenValues.get(key);
+    } else if (readValues.containsKey(key)) {
+      // we've read this value before, simply return it
+      return readValues.get(key);
+    } else {
+      // never read/written this before, get it from the server
+      // and keep track of it to include in the TransactionRequest
+      var value = namiClient.get(snapshotTid, key.key());
+      readValues.put(key, value);
+      return value;
+    }
   }
 
   // store the value in memory under the given key so we can send it to the server later
-  public void put(NKey key, ByteBuffer value) {}
+  // will overwrite any previous values written to this entry
+  public void put(NKey key, ByteString value) {
+    writtenValues.put(key, value);
+  }
 
   // Attempt to commit this transaction to the server
   public CommitOutcome commit() {
-    throw new RuntimeException("not implemented");
+    var txBuilder = TransactionRequest.newBuilder();
+    txBuilder.setSnapshotTid(snapshotTid);
+    for (var readValue : readValues.entrySet()) {
+      var inTxGetBuilder = InTransactionGet.newBuilder().setKey(readValue.getKey().key()).setValue(readValue.getValue());
+      txBuilder.addReads(inTxGetBuilder);
+    }
+    for (var readValue : writtenValues.entrySet()) {
+      var inTxPutBuilder = InTransactionPut.newBuilder().setKey(readValue.getKey().key()).setValue(readValue.getValue());
+      txBuilder.addPuts(inTxPutBuilder);
+    }
+    var committed = namiClient.commit(snapshotTid, readValues, writtenValues);
+    // TODO actually commit the transaction to server
+    return CommitOutcome.COMMITTED;
   }
 
   // start a new transaction against the provided Nami cluster
   public static ClientTransaction begin(NamiClient namiClient) {
-    // TODO connect to nami, get a recent snapshot tid, pass it here
-    return new ClientTransaction(0);
+    var recentTid = namiClient.getRecentTid();
+    return new ClientTransaction(namiClient, recentTid);
   }
 
   enum CommitOutcome {
