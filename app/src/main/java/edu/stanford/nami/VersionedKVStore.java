@@ -38,7 +38,7 @@ public class VersionedKVStore {
     db.put(key.toBytes(), value);
   }
 
-  public byte[] get(NVKey key) throws RocksDBException {
+  public byte[] getExactlyAtVersion(NVKey key) throws RocksDBException {
     return db.get(key.toBytes());
   }
 
