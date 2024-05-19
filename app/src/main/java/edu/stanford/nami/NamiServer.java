@@ -15,11 +15,15 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import lombok.RequiredArgsConstructor;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
+import org.apache.ratis.protocol.RaftClientRequest;
 import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
+import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.ratis.util.NetUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
@@ -34,7 +38,8 @@ public class NamiServer {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
     VersionedKVStore kvStore = new VersionedKVStore(db);
-    server = serverBuilder.addService(new KVStoreService(kvStore)).build();
+    KVStoreStateMachine stateMachine = new KVStoreStateMachine(kvStore);
+    server = serverBuilder.addService(new KVStoreService(kvStore, stateMachine)).build();
 
     // create a property object
     final RaftProperties properties = new RaftProperties();
@@ -45,9 +50,6 @@ public class NamiServer {
     // set the port (different for each peer) in RaftProperty object
     final int raftPeerPort = NetUtils.createSocketAddr(peer.getAddress()).getPort();
     GrpcConfigKeys.Server.setPort(properties, raftPeerPort);
-
-    // create the counter state machine which holds the counter value
-    final KVStoreStateMachine stateMachine = new KVStoreStateMachine(kvStore);
 
     // build the Raft server
     this.raftServer =
@@ -171,12 +173,10 @@ public class NamiServer {
     }
   }
 
+  @RequiredArgsConstructor
   private static class KVStoreService extends KVStoreGrpc.KVStoreImplBase {
     private final VersionedKVStore kvStore;
-
-    KVStoreService(VersionedKVStore kvStore) {
-      this.kvStore = kvStore;
-    }
+    private final KVStoreStateMachine stateMachine;
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
@@ -199,9 +199,9 @@ public class NamiServer {
 
     @Override
     public void getRecentTid(
-        GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
-      // TODO expose a recent tid
-      var response = GetRecentTidResponse.newBuilder().setTid(1).build();
+            GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
+      TermIndex lastAppliedTermIndex = this.stateMachine.getLastAppliedTermIndex();
+      var response = GetRecentTidResponse.newBuilder().setTid(lastAppliedTermIndex.getIndex()).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }

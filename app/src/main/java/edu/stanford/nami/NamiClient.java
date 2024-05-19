@@ -42,7 +42,8 @@ public final class NamiClient implements Closeable {
     var request = GetRecentTidRequest.newBuilder().build();
     var response = blockingStub.getRecentTid(request);
     var recentTid = response.getTid();
-    Preconditions.checkState(recentTid > 0, "Invalid tid '" + recentTid + "' received");
+    System.out.println("Recent TID: " + recentTid);
+//    Preconditions.checkState(recentTid > 0, "Invalid tid '" + recentTid + "' received");
     return response.getTid();
   }
 

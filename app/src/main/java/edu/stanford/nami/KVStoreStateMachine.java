@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientRequest;
@@ -61,16 +63,23 @@ public class KVStoreStateMachine extends BaseStateMachine {
   }
 
   @Override
-  public TransactionContext startTransaction(RaftClientRequest request) throws IOException {
-    System.out.println("Starting transaction");
-    final ByteString content = request.getMessage().getContent();
-    final com.google.protobuf.ByteString googleContent = convertToGoogleByteString(content);
-    final KVStoreRaftRequest proto = KVStoreRaftRequest.parseFrom(googleContent);
-    final TransactionContext.Builder b =
-        TransactionContext.newBuilder().setStateMachine(this).setClientRequest(request);
-    b.setLogData(content).setStateMachineContext(proto);
-    System.out.println("Starting ending transaction");
-    return b.build();
+  public TransactionContext startTransaction(RaftClientRequest request)
+      throws InvalidProtocolBufferException {
+    try {
+      System.out.println("Starting transaction");
+      final ByteString content = request.getMessage().getContent();
+      final com.google.protobuf.ByteString googleContent = convertToGoogleByteString(content);
+      final KVStoreRaftRequest proto = KVStoreRaftRequest.parseFrom(googleContent);
+      final TransactionContext.Builder b =
+          TransactionContext.newBuilder().setStateMachine(this).setClientRequest(request);
+      b.setLogData(content).setStateMachineContext(proto);
+      System.out.println("Starting ending transaction");
+      return b.build();
+    } catch (Exception e) {
+      System.out.println("Error starting transaction" + e.getMessage());
+      e.printStackTrace();
+      throw e;
+    }
   }
 
   static KVStoreRaftRequest getProto(TransactionContext context, RaftProtos.LogEntryProto entry) {
