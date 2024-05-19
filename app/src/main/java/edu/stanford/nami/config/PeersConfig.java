@@ -13,10 +13,14 @@ public class PeersConfig {
   List<PeerConfig> peers;
   private static final UUID GROUP_ID = UUID.fromString("02511d47-d67c-49a3-9011-abb3109a44c1");
 
+  public static RaftGroupId geRaftGroupId() {
+    return RaftGroupId.valueOf(GROUP_ID);
+  }
+
   public RaftGroup getRaftGroup() {
     List<RaftPeer> raftPeers = peers.stream().map(peer -> RaftPeer.newBuilder()
             .setId(peer.getPeerId())
-            .setAddress(peer.getAddress())
+            .setAddress(peer.getAddress() + ":" + peer.raftPort)
             .setPriority(peer.getPriority())
             .build()).toList();
     return RaftGroup.valueOf(RaftGroupId.valueOf(GROUP_ID), raftPeers);

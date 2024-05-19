@@ -66,7 +66,7 @@ public class NamiServer {
     server.start();
     System.out.println("Server started, listening on " + port);
     raftServer.start();
-    System.out.println("Raft Server started, with id " + raftServer.getId());
+    System.out.println("Raft Server started, with id " + raftServer.getId() + " and config " + raftServer.getDivision(PeersConfig.geRaftGroupId()));
 
     // make sure we shut down properly
     Runtime.getRuntime().addShutdownHook(new ShutdownHook());
@@ -132,8 +132,6 @@ public class NamiServer {
     var raftPath = dataPath.resolve("raft");
     System.out.println("RocksDB data will be stored in " + rocksDbPath.toAbsolutePath());
     System.out.println("Raft data will be stored in " + raftPath.toAbsolutePath());
-
-    final int peerIndex = config.getPeerIndex();
 
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
