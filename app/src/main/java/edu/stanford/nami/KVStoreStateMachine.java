@@ -102,16 +102,14 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private boolean isInTransactionGetValueValid(long tid, InTransactionGet inTransactionGet)
-      throws RocksDBException {
+  private boolean isInTransactionGetValueValid(long tid, InTransactionGet inTransactionGet) {
     NKey nKey = new NKey(inTransactionGet.getKey());
     byte[] value = withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, tid));
     Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
     return Arrays.equals(value, inTransactionGet.getValue().toByteArray());
   }
 
-  private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut)
-      throws RocksDBException {
+  private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut) {
     NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
     com.google.protobuf.ByteString value = inTransactionPut.getValue();
     withRocksDBRetries(
@@ -124,39 +122,28 @@ public class KVStoreStateMachine extends BaseStateMachine {
   private CompletableFuture<Message> processTransaction(
       long currentTid, TransactionRequest request) {
     for (InTransactionGet inTransactionGet : request.getGetsList()) {
-      try {
-        // TODO: special case for currentTid = 0?
-        if (!this.isInTransactionGetValueValid(currentTid - 1, inTransactionGet)) {
-          ByteString byteString =
-              convertToRatisByteString(
-                  KVStoreRaftResponse.newBuilder()
-                      .setTransaction(
-                          TransactionResponse.newBuilder()
-                              .setStatus(TransactionStatus.CONFLICT_ABORTED))
-                      .build()
-                      .toByteString());
-          return CompletableFuture.completedFuture(Message.valueOf(byteString));
-        }
-      } catch (RocksDBException e) {
-        return JavaUtils.completeExceptionally(new RuntimeException(e));
+      // TODO: special case for currentTid = 0?
+      if (!this.isInTransactionGetValueValid(currentTid - 1, inTransactionGet)) {
+        var byteString = constructTransactionResponse(TransactionStatus.CONFLICT_ABORTED);
+        return CompletableFuture.completedFuture(Message.valueOf(byteString));
       }
     }
     for (InTransactionPut inTransactionPut : request.getPutsList()) {
-      try {
-        this.processInTransactionPut(currentTid, inTransactionPut);
-      } catch (RocksDBException e) {
-        // A problem we need to handle if DB is down continuously?
-        return JavaUtils.completeExceptionally(new RuntimeException(e));
-      }
+      this.processInTransactionPut(currentTid, inTransactionPut);
     }
+    ByteString byteString = constructTransactionResponse(TransactionStatus.COMMITTED);
+    return CompletableFuture.completedFuture(Message.valueOf(byteString));
+  }
+
+  private ByteString constructTransactionResponse(TransactionStatus status) {
     ByteString byteString =
         convertToRatisByteString(
             KVStoreRaftResponse.newBuilder()
                 .setTransaction(
-                    TransactionResponse.newBuilder().setStatus(TransactionStatus.COMMITTED))
+                    TransactionResponse.newBuilder().setStatus(TransactionStatus.CONFLICT_ABORTED))
                 .build()
                 .toByteString());
-    return CompletableFuture.completedFuture(Message.valueOf(byteString));
+    return byteString;
   }
 
   /**
