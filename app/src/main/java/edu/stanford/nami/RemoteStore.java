@@ -12,14 +12,13 @@ import io.grpc.InsecureChannelCredentials;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
-/** Provides a single unified view of all the VersionedKVStores in the system. */
-public class GlobalStore {
+public class RemoteStore {
   private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
   private final String selfId;
   private final ChunksConfig chunksConfig;
   private final Map<String, KVStoreGrpc.KVStoreBlockingStub> peerClients;
 
-  public GlobalStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
+  public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
     Preconditions.checkNotNull(selfId);
     Preconditions.checkNotNull(peersConfig);
     Preconditions.checkNotNull(chunksConfig);
