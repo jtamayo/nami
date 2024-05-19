@@ -12,7 +12,7 @@ public class PeersConfig {
   List<PeerConfig> peers;
   private static final UUID GROUP_ID = UUID.fromString("02511d47-d67c-49a3-9011-abb3109a44c1");
 
-  public static RaftGroupId geRaftGroupId() {
+  public static RaftGroupId getRaftGroupId() {
     return RaftGroupId.valueOf(GROUP_ID);
   }
 

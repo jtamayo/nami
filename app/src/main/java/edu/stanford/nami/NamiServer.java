@@ -75,7 +75,7 @@ public class NamiServer {
         "Raft Server started, with id "
             + raftServer.getId()
             + " and config "
-            + raftServer.getDivision(PeersConfig.geRaftGroupId()));
+            + raftServer.getDivision(PeersConfig.getRaftGroupId()));
 
     // make sure we shut down properly
     Runtime.getRuntime().addShutdownHook(new ShutdownHook());
