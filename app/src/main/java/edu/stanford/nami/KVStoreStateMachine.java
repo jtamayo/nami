@@ -4,12 +4,11 @@ import static edu.stanford.nami.ProtoUtils.convertToGoogleByteString;
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
-
-import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientRequest;

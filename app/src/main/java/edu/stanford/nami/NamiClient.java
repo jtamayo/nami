@@ -2,7 +2,6 @@ package edu.stanford.nami;
 
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
-import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Channel;
@@ -43,7 +42,6 @@ public final class NamiClient implements Closeable {
     var response = blockingStub.getRecentTid(request);
     var recentTid = response.getTid();
     System.out.println("Recent TID: " + recentTid);
-//    Preconditions.checkState(recentTid > 0, "Invalid tid '" + recentTid + "' received");
     return response.getTid();
   }
 
