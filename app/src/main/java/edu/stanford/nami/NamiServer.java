@@ -13,9 +13,7 @@ import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
@@ -23,7 +21,6 @@ import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
 import org.apache.ratis.util.NetUtils;
-import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -33,9 +30,7 @@ public class NamiServer {
   private final Server server;
   private final RaftServer raftServer;
 
-  public NamiServer(
-      int port, RocksDB db, RaftPeer peer, File storageDir, TimeDuration simulatedSlowness)
-      throws IOException {
+  public NamiServer(int port, RocksDB db, RaftPeer peer, File storageDir) throws IOException {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
     VersionedKVStore kvStore = new VersionedKVStore(db);
@@ -52,7 +47,7 @@ public class NamiServer {
     GrpcConfigKeys.Server.setPort(properties, raftPeerPort);
 
     // create the counter state machine which holds the counter value
-    final KVStoreStateMachine stateMachine = new KVStoreStateMachine(simulatedSlowness, kvStore);
+    final KVStoreStateMachine stateMachine = new KVStoreStateMachine(kvStore);
 
     // build the Raft server
     this.raftServer =
@@ -132,10 +127,6 @@ public class NamiServer {
     System.out.println("Raft data will be stored in " + raftPath.toAbsolutePath());
 
     final int peerIndex = config.getPeerIndex();
-    var simulatedSlowness =
-        Optional.ofNullable(RaftConstants.SIMULATED_SLOWNESS)
-            .map(slownessList -> slownessList.get(peerIndex))
-            .orElse(TimeDuration.ZERO);
 
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
@@ -146,8 +137,7 @@ public class NamiServer {
         System.out.println("current Peer is " + currentPeer.getAddress());
         System.out.println("current Peer s client address is " + currentPeer.getClientAddress());
         var storageDir = raftPath.toFile();
-        var server =
-            new NamiServer(8980 + peerIndex, db, currentPeer, storageDir, simulatedSlowness);
+        var server = new NamiServer(8980 + peerIndex, db, currentPeer, storageDir);
         server.start();
         server.blockUntilShutdown();
       }
@@ -190,21 +180,21 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
-       try {
-         NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-         byte[] value = this.kvStore.get(nvKey);
-         GetResponse response;
-         if (value == null) {
-           response = GetResponse.newBuilder().build();
-         } else {
-           response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
-         }
-         responseObserver.onNext(response);
-         responseObserver.onCompleted();
-       } catch (RocksDBException e) {
-         System.out.println("Error getting:" + e.getMessage());
-         responseObserver.onError(e);
-       }
+      try {
+        NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
+        byte[] value = this.kvStore.get(nvKey);
+        GetResponse response;
+        if (value == null) {
+          response = GetResponse.newBuilder().build();
+        } else {
+          response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
+        }
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+      } catch (RocksDBException e) {
+        System.out.println("Error getting:" + e.getMessage());
+        responseObserver.onError(e);
+      }
     }
 
     @Override

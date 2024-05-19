@@ -3,6 +3,7 @@ package edu.stanford.nami;
 import static edu.stanford.nami.ProtoUtils.convertToGoogleByteString;
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
+import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -19,7 +20,6 @@ import org.apache.ratis.statemachine.impl.BaseStateMachine;
 import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.JavaUtils;
-import org.apache.ratis.util.TimeDuration;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Status;
 
@@ -27,26 +27,10 @@ public class KVStoreStateMachine extends BaseStateMachine {
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
   private static final int NUM_DB_RETRIES = 3;
 
-  // For testing only
-  private final TimeDuration simulatedSlowness;
-
   private final VersionedKVStore kvStore;
 
-  public KVStoreStateMachine(TimeDuration simulatedSlowness, VersionedKVStore kvStore) {
+  public KVStoreStateMachine(VersionedKVStore kvStore) {
     this.kvStore = kvStore;
-    this.simulatedSlowness = simulatedSlowness.isPositive() ? simulatedSlowness : null;
-  }
-
-  private void addSleep() {
-    if (simulatedSlowness != null) {
-      try {
-        simulatedSlowness.sleep();
-      } catch (InterruptedException e) {
-        System.out.println(
-            "{}: get interrupted in simulated slowness sleep before apply transaction");
-        Thread.currentThread().interrupt();
-      }
-    }
   }
 
   /**
@@ -85,6 +69,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     final TransactionContext.Builder b =
         TransactionContext.newBuilder().setStateMachine(this).setClientRequest(request);
     b.setLogData(content).setStateMachineContext(proto);
+    System.out.println("Starting ending transaction");
     return b.build();
   }
 
@@ -109,31 +94,18 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private CompletableFuture<Message> processPut(long index, PutRequest request) {
-    NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-    com.google.protobuf.ByteString value = request.getValue();
-    try {
-      this.kvStore.put(nvKey, value.toByteArray());
-      ByteString byteString =
-          convertToRatisByteString(PutResponse.newBuilder().setValue(value).build().toByteString());
-      return CompletableFuture.completedFuture(Message.valueOf(byteString));
-    } catch (RocksDBException e) {
-      System.out.println("Error putting:" + e.getMessage());
-      return CompletableFuture.completedFuture(Message.EMPTY);
-    }
-  }
-
-  private boolean processInTransactionGet(long tid, InTransactionGet inTransactionGet)
+  private boolean isInTransactionGetValueValid(long tid, InTransactionGet inTransactionGet)
       throws RocksDBException {
     NKey nKey = new NKey(inTransactionGet.getKey());
     byte[] value;
     int numRetries = 0;
     while (true) {
+      // TODO: refactor try/catch
       try {
         value = this.kvStore.getAsOf(nKey, tid);
         break;
       } catch (RocksDBException e) {
-        // Fix this to capture transient errors vs un-retriable errors
+        // TODO: Handle different failure modes
         if (numRetries <= NUM_DB_RETRIES
             && (e.getStatus().getCode() == Status.Code.Aborted
                 || e.getStatus().getCode() == Status.Code.Expired
@@ -146,12 +118,13 @@ public class KVStoreStateMachine extends BaseStateMachine {
         throw e;
       }
     }
-    return value != null && Arrays.equals(value, inTransactionGet.getValue().toByteArray());
+    Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
+    return Arrays.equals(value, inTransactionGet.getValue().toByteArray());
   }
 
-  private void processInTransactionPut(long index, InTransactionPut inTransactionPut)
+  private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut)
       throws RocksDBException {
-    NVKey nvKey = new NVKey(index, inTransactionPut.getKey());
+    NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
     com.google.protobuf.ByteString value = inTransactionPut.getValue();
     int numRetries = 0;
     while (true) {
@@ -174,11 +147,12 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private CompletableFuture<Message> processTransaction(long index, TransactionRequest request) {
-    long snapshotTid = request.getSnapshotTid();
+  private CompletableFuture<Message> processTransaction(
+      long currentTid, TransactionRequest request) {
     for (InTransactionGet inTransactionGet : request.getReadsList()) {
       try {
-        if (!this.processInTransactionGet(snapshotTid, inTransactionGet)) {
+        // TODO: special case for currentTid = 0?
+        if (!this.isInTransactionGetValueValid(currentTid - 1, inTransactionGet)) {
           ByteString byteString =
               convertToRatisByteString(
                   KVStoreRaftResponse.newBuilder()
@@ -190,15 +164,15 @@ public class KVStoreStateMachine extends BaseStateMachine {
           return CompletableFuture.completedFuture(Message.valueOf(byteString));
         }
       } catch (RocksDBException e) {
-        throw new RuntimeException(e);
+        return JavaUtils.completeExceptionally(new RuntimeException(e));
       }
     }
     for (InTransactionPut inTransactionPut : request.getPutsList()) {
       try {
-        this.processInTransactionPut(index, inTransactionPut);
+        this.processInTransactionPut(currentTid, inTransactionPut);
       } catch (RocksDBException e) {
         // A problem we need to handle if DB is down continuously?
-        throw new RuntimeException(e);
+        return JavaUtils.completeExceptionally(new RuntimeException(e));
       }
     }
     ByteString byteString =
@@ -222,6 +196,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     System.out.println("Applying transaction");
     final RaftProtos.LogEntryProto entry = trx.getLogEntry();
     final long index = entry.getIndex();
+    // TODO: Need to move this to after processing the transaction
     updateLastAppliedTermIndex(entry.getTerm(), index);
 
     final TermIndex termIndex = TermIndex.valueOf(entry);
@@ -232,12 +207,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
       System.out.println(termIndex + ": Applying transaction " + request.getRequestCase());
     }
 
-    // Testing only
-    addSleep();
-
     switch (request.getRequestCase()) {
-      case PUT:
-        return processPut(index, request.getPut());
       case TRANSACTION:
         return processTransaction(index, request.getTransaction());
       default:

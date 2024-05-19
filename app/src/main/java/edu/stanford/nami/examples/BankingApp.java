@@ -106,7 +106,8 @@ public final class BankingApp {
     }
     System.out.println("Positive balance: " + positiveBalance);
     System.out.println("Negative balance: " + negativeBalance);
-    Preconditions.checkState(positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
+    Preconditions.checkState(
+        positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
   }
 
   @RequiredArgsConstructor

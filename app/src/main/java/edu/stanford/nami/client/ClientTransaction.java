@@ -2,7 +2,6 @@ package edu.stanford.nami.client;
 
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,5 +55,4 @@ public final class ClientTransaction {
     var recentTid = namiClient.getRecentTid();
     return new ClientTransaction(namiClient, recentTid);
   }
-
 }
