@@ -4,19 +4,22 @@
             "peerId": "p_00",
             "address": "127.0.0.1",
             "raftPort": 10000,
-            "kvPort": 15000
+            "kvPort": 15000,
+            "priority": 1
         },
         {
             "peerId": "p_01",
             "address": "127.0.0.1",
             "raftPort": 10001,
-            "kvPort": 15001
+            "kvPort": 15001,
+            "priority": 0
         },
         {
             "peerId": "p_02",
             "address": "127.0.0.1",
             "raftPort": 10002,
-            "kvPort": 15002
+            "kvPort": 15002,
+            "priority": 0
         }
     ]
 }
