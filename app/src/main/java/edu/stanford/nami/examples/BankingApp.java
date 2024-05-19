@@ -13,15 +13,14 @@ import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
 import edu.stanford.nami.config.Config;
 import edu.stanford.nami.config.PeersConfig;
-import edu.stanford.nami.config.ServerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.File;
-import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -64,9 +63,7 @@ public final class BankingApp {
     // TODO connect to other peers besides the first one
     var firstPeerConfig = peersConfig.getPeers().get(0);
 
-    String targetHost = firstPeerConfig.getAddress();
-    int defaultPort = firstPeerConfig.getKvPort();
-    String target = targetHost + ":" + defaultPort;
+    String target = firstPeerConfig.getKvAddress();
 
     ManagedChannel channel =
         Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();

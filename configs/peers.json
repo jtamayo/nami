@@ -2,21 +2,21 @@
     "peers": [
         {
             "peerId": "p_00",
-            "address": "127.0.0.1",
+            "host": "127.0.0.1",
             "raftPort": 10024,
             "kvPort": 8980,
             "priority": 1
         },
         {
             "peerId": "p_01",
-            "address": "127.0.0.1",
+            "host": "127.0.0.1",
             "raftPort": 10124,
             "kvPort": 8981,
             "priority": 0
         },
         {
             "peerId": "p_02",
-            "address": "127.0.0.1",
+            "host": "127.0.0.1",
             "raftPort": 11124,
             "kvPort": 8982,
             "priority": 0

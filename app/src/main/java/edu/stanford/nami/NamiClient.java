@@ -4,10 +4,8 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import edu.stanford.nami.config.PeersConfig;
 import io.grpc.ManagedChannel;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;

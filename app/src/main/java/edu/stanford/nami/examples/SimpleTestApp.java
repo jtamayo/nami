@@ -1,11 +1,5 @@
 package edu.stanford.nami.examples;
 
-import edu.stanford.nami.NamiClient;
-import io.grpc.Grpc;
-import io.grpc.InsecureChannelCredentials;
-import io.grpc.ManagedChannel;
-import java.util.concurrent.TimeUnit;
-
 public class SimpleTestApp {
 
   /** Issues several different requests and then exits. */

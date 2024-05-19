@@ -1,7 +1,6 @@
 package edu.stanford.nami.config;
 
 import java.util.*;
-
 import lombok.Data;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
@@ -18,11 +17,16 @@ public class PeersConfig {
   }
 
   public RaftGroup getRaftGroup() {
-    List<RaftPeer> raftPeers = peers.stream().map(peer -> RaftPeer.newBuilder()
-            .setId(peer.getPeerId())
-            .setAddress(peer.getAddress() + ":" + peer.raftPort)
-            .setPriority(peer.getPriority())
-            .build()).toList();
+    List<RaftPeer> raftPeers =
+        peers.stream()
+            .map(
+                peer ->
+                    RaftPeer.newBuilder()
+                        .setId(peer.getPeerId())
+                        .setAddress(peer.getRaftAddress())
+                        .setPriority(peer.getPriority())
+                        .build())
+            .toList();
     return RaftGroup.valueOf(RaftGroupId.valueOf(GROUP_ID), raftPeers);
   }
 
@@ -32,7 +36,7 @@ public class PeersConfig {
     String peerId;
 
     /** IP address/name of where the server is located, i.e. localhost, or 10.2.3.4. */
-    String address;
+    String host;
 
     /** Port where the raft server is listening. */
     int raftPort;
@@ -40,9 +44,18 @@ public class PeersConfig {
     /** Port where the nami GRPC server is listening. */
     int kvPort;
 
-    /** Used to determine whether this peer should be the leader. The higher the number the more weight. */
+    /**
+     * Used to determine whether this peer should be the leader. The higher the number the more
+     * weight.
+     */
     int priority;
+
+    public String getRaftAddress() {
+      return host + ":" + raftPort;
+    }
+
+    public String getKvAddress() {
+      return host + ":" + kvPort;
+    }
   }
-
-
 }

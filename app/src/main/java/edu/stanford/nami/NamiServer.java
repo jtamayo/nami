@@ -33,7 +33,12 @@ public class NamiServer {
   private final Server server;
   private final RaftServer raftServer;
 
-  public NamiServer(int port, RocksDB db, PeersConfig peersConfig, PeersConfig.PeerConfig peerConfig, File storageDir)
+  public NamiServer(
+      int port,
+      RocksDB db,
+      PeersConfig peersConfig,
+      PeersConfig.PeerConfig peerConfig,
+      File storageDir)
       throws IOException {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
@@ -66,7 +71,11 @@ public class NamiServer {
     server.start();
     System.out.println("Server started, listening on " + port);
     raftServer.start();
-    System.out.println("Raft Server started, with id " + raftServer.getId() + " and config " + raftServer.getDivision(PeersConfig.geRaftGroupId()));
+    System.out.println(
+        "Raft Server started, with id "
+            + raftServer.getId()
+            + " and config "
+            + raftServer.getDivision(PeersConfig.geRaftGroupId()));
 
     // make sure we shut down properly
     Runtime.getRuntime().addShutdownHook(new ShutdownHook());
@@ -111,7 +120,10 @@ public class NamiServer {
     var selfPeerId = config.getSelfPeerId();
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     PeersConfig.PeerConfig peerConfig =
-            peersConfig.getPeers().stream().filter(pc -> pc.getPeerId().equals(selfPeerId)).findAny().orElse(null);
+        peersConfig.getPeers().stream()
+            .filter(pc -> pc.getPeerId().equals(selfPeerId))
+            .findAny()
+            .orElse(null);
     if (peerConfig == null) {
       throw new RuntimeException("Could not find peer config for " + selfPeerId);
     }
@@ -138,9 +150,10 @@ public class NamiServer {
       options.setCreateIfMissing(true);
       try (var db = RocksDB.open(options, rocksDbPath.toString())) {
         // get peer and define storage dir
-        System.out.println("current Peer is " + peerConfig.getAddress() + ":" + peerConfig.getKvPort());
+        System.out.println("current Peer is " + peerConfig.getRaftAddress());
         var storageDir = raftPath.toFile();
-        var server = new NamiServer(peerConfig.getKvPort(), db, peersConfig, peerConfig, storageDir);
+        var server =
+            new NamiServer(peerConfig.getKvPort(), db, peersConfig, peerConfig, storageDir);
         server.start();
         server.blockUntilShutdown();
       }
