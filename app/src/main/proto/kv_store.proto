@@ -54,6 +54,7 @@ message TransactionResponse {
 enum TransactionStatus {
   COMMITTED = 0;
   CONFLICT_ABORTED = 1;
+  UNKNOWN = 3;
 }
 
 message InTransactionGet {

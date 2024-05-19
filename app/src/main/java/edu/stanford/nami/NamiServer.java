@@ -38,12 +38,18 @@ public class NamiServer {
       RocksDB db,
       PeersConfig peersConfig,
       PeersConfig.PeerConfig peerConfig,
+      ChunksConfig chunksConfig,
+      Chunks.PeerAllocation peerAllocation,
       File storageDir)
       throws IOException {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
-    VersionedKVStore kvStore = new VersionedKVStore(db);
-    KVStoreStateMachine stateMachine = new KVStoreStateMachine(kvStore);
+    VersionedKVStore kvStore = new VersionedKVStore(db, peerAllocation);
+    RemoteStore remoteStore = new RemoteStore(peerConfig.getPeerId(), peersConfig, chunksConfig);
+    CachingStore cachingStore = new CachingStore();
+    TransactionProcessor transactionProcessor =
+        new TransactionProcessor(kvStore, remoteStore, cachingStore);
+    KVStoreStateMachine stateMachine = new KVStoreStateMachine(transactionProcessor);
     server = serverBuilder.addService(new KVStoreService(kvStore, stateMachine)).build();
 
     // create a property object
@@ -128,6 +134,14 @@ public class NamiServer {
       throw new RuntimeException("Could not find peer config for " + selfPeerId);
     }
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
+    var peerAllocation =
+        chunksConfig.getPeerAllocations().stream()
+            .filter(pa -> pa.peerId().equals(selfPeerId))
+            .findAny()
+            .orElse(null);
+    if (peerAllocation == null) {
+      throw new RuntimeException("Could not find peer allocation for " + selfPeerId);
+    }
     var dataPath =
         configFile
             .getParentFile()
@@ -153,7 +167,14 @@ public class NamiServer {
         System.out.println("current Peer is " + peerConfig.getRaftAddress());
         var storageDir = raftPath.toFile();
         var server =
-            new NamiServer(peerConfig.getKvPort(), db, peersConfig, peerConfig, storageDir);
+            new NamiServer(
+                peerConfig.getKvPort(),
+                db,
+                peersConfig,
+                peerConfig,
+                chunksConfig,
+                peerAllocation,
+                storageDir);
         server.start();
         server.blockUntilShutdown();
       }
