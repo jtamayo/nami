@@ -19,7 +19,7 @@ public class VersionedKVStoreTest extends RocksDBTest {
       // put the values in the store
       vkv.put(key, values);
       // retrieve them, compare the string
-      var actual = new String(vkv.get(key));
+      var actual = new String(vkv.getExactlyAtVersion(key));
 
       assertThat(actual).isEqualTo(expected);
     }
@@ -47,7 +47,7 @@ public class VersionedKVStoreTest extends RocksDBTest {
       assertThat(new String(five)).isEqualTo("five");
 
       // make sure we can still get the first one
-      var anotherOne = vkv.get(new NVKey(1, key));
+      var anotherOne = vkv.getExactlyAtVersion(new NVKey(1, key));
       assertThat(new String(anotherOne)).isEqualTo("one");
 
       // if we ask for the wrong key, even if it's the same prefix, return null

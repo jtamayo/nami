@@ -1,6 +1,7 @@
 package edu.stanford.nami;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
@@ -15,11 +16,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
-
 import lombok.RequiredArgsConstructor;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
-import org.apache.ratis.protocol.RaftClientRequest;
 import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
@@ -181,14 +180,11 @@ public class NamiServer {
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
       try {
-        NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-        byte[] value = this.kvStore.get(nvKey);
-        GetResponse response;
-        if (value == null) {
-          response = GetResponse.newBuilder().build();
-        } else {
-          response = GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
-        }
+        byte[] value =
+            this.kvStore.getAsOf(new NKey(request.getKey().getKey()), request.getKey().getTid());
+        Preconditions.checkNotNull(value);
+        GetResponse response =
+            GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (RocksDBException e) {
@@ -199,9 +195,10 @@ public class NamiServer {
 
     @Override
     public void getRecentTid(
-            GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
+        GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
       TermIndex lastAppliedTermIndex = this.stateMachine.getLastAppliedTermIndex();
-      var response = GetRecentTidResponse.newBuilder().setTid(lastAppliedTermIndex.getIndex()).build();
+      var response =
+          GetRecentTidResponse.newBuilder().setTid(lastAppliedTermIndex.getIndex()).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }
