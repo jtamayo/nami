@@ -114,10 +114,11 @@ public class KVStoreStateMachine extends BaseStateMachine {
       throws RocksDBException {
     NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
     com.google.protobuf.ByteString value = inTransactionPut.getValue();
-    withRocksDBRetries(() -> {
-      this.kvStore.put(nvKey, value.toByteArray());
-      return null;
-    });
+    withRocksDBRetries(
+        () -> {
+          this.kvStore.put(nvKey, value.toByteArray());
+          return null;
+        });
   }
 
   private CompletableFuture<Message> processTransaction(

@@ -74,7 +74,6 @@ public final class NamiClient implements Closeable {
     }
 
     var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
-    // TODO this response is incorrect, it shouldn't be a put
     return submitRaftRequest(raftRequest).getTransaction();
   }
 
@@ -100,7 +99,6 @@ public final class NamiClient implements Closeable {
   }
 
   public static void put(long tid, String key, String value, RaftClient client) throws Exception {
-    // use BlockingApi
     ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
     PutRequest putRequest =
         PutRequest.newBuilder().setKey(protoVKey).setValue(ByteString.copyFromUtf8(value)).build();

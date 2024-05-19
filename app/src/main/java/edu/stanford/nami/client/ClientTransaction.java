@@ -19,9 +19,10 @@ public final class ClientTransaction {
     this.namiClient = namiClient;
   }
 
-  // get value as of snapshotTid and store the read key/value in memory so we can send it to
-  // server later
-  // TODO what do we do if the key doesn't exist? do we handle "null values"?
+  /**
+   * Get value as of snapshotTid and store the read key/value in memory so we can send it to server
+   * later
+   */
   public ByteString get(NKey key) {
     // first check if we've written it before
     if (writtenValues.containsKey(key)) {
