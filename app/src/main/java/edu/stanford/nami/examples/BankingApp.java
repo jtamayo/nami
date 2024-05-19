@@ -1,14 +1,23 @@
 package edu.stanford.nami.examples;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+import com.google.common.io.Files;
+import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionStatus;
 import edu.stanford.nami.client.ClientTransaction;
+import edu.stanford.nami.config.ChunksConfig;
+import edu.stanford.nami.config.ClientConfig;
+import edu.stanford.nami.config.Config;
+import edu.stanford.nami.config.PeersConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,21 +39,35 @@ public final class BankingApp {
 
   public static void main(String[] args) throws InterruptedException {
     System.out.println("Starting BankingApp benchmark");
-    String targetHost = "localhost";
-    int defaultPort = 8980;
-    if (args.length > 0) {
-      final int serverPeerIndex = Integer.parseInt(args[0]);
-      if (serverPeerIndex < 0 || serverPeerIndex > 2) {
-        throw new IllegalArgumentException(
-            "The server index must be 0, 1 or 2: peerIndex=" + serverPeerIndex);
-      }
-      defaultPort += serverPeerIndex;
+    System.out.println("Running in " + new File(".").getAbsolutePath());
+
+    if (args.length != 1) {
+      System.err.println("Invalid usage. Usage: banking-app <config_file>");
+      System.exit(-1);
     }
-    String target = targetHost + ":" + defaultPort;
+    var configFileName = args[0];
+    var configFile = new File(configFileName);
+
+    if (!configFile.exists()) {
+      System.err.println("File " + configFile.getAbsolutePath() + " does not exist");
+      System.exit(-2);
+    } else {
+      System.out.println("Found config file at " + configFile.getAbsolutePath());
+    }
+
+    var config = loadClientConfig(configFile);
+    System.out.println("Loaded client config " + config);
+    var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
+    var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
+
+    // TODO connect to other peers besides the first one
+    var firstPeerConfig = peersConfig.getPeers().get(0);
+
+    String target = firstPeerConfig.getKvAddress();
 
     ManagedChannel channel =
         Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
-    try (NamiClient client = new NamiClient(channel)) {
+    try (NamiClient client = new NamiClient(channel, peersConfig)) {
       new BankingApp(client).run();
       System.out.println("Done running banking app");
     } catch (Throwable e) {
@@ -52,6 +75,22 @@ public final class BankingApp {
     } finally {
       channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
     }
+  }
+
+  private static ClientConfig loadClientConfig(File configFile) {
+    try (var reader = Files.newReader(configFile, Charsets.UTF_8)) {
+      return new Gson().fromJson(reader, ClientConfig.class);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static PeersConfig loadPeersConfig(File configFile, String path) {
+    return Config.loadConfig(configFile, path, PeersConfig.class);
+  }
+
+  public static ChunksConfig loadChunksConfig(File configFile, String path) {
+    return Config.loadConfig(configFile, path, ChunksConfig.class);
   }
 
   public void run() throws InterruptedException {

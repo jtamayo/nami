@@ -15,14 +15,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
-import org.apache.ratis.util.TimeDuration;
 
 /** Constants across servers and clients */
 public final class RaftConstants {
@@ -45,8 +42,6 @@ public final class RaftConstants {
   }
 
   public static final List<RaftPeer> PEERS;
-  public static final String PATH;
-  public static final List<TimeDuration> SIMULATED_SLOWNESS;
 
   static {
     final Properties properties = new Properties();
@@ -75,22 +70,6 @@ public final class RaftConstants {
       throw new IllegalArgumentException("priority should be assigned to each server in " + conf);
     }
 
-    final String slownessKey = "raft.server.simulated-slowness.list";
-    final String[] slowness = parseConfList.apply(slownessKey);
-    if (slowness != null && slowness.length != addresses.length) {
-      throw new IllegalArgumentException(
-          "simulated-slowness should be assigned to each server in" + conf);
-    }
-    SIMULATED_SLOWNESS =
-        slowness == null
-            ? null
-            : Arrays.stream(slowness)
-                .map(s -> TimeDuration.valueOf(s, TimeUnit.SECONDS))
-                .collect(Collectors.toList());
-
-    final String key1 = "raft.server.root.storage.path";
-    final String path = properties.getProperty(key1);
-    PATH = path == null ? "./ratis-examples/target" : path;
     final List<RaftPeer> peers = new ArrayList<>(addresses.length);
     for (int i = 0; i < addresses.length; i++) {
       final int priority = priorities == null ? 0 : Integer.parseInt(priorities[i]);

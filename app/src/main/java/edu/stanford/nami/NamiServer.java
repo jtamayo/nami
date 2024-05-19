@@ -6,6 +6,7 @@ import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.config.ChunksConfig;
+import edu.stanford.nami.config.Config;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.ServerConfig;
 import io.grpc.Grpc;
@@ -19,11 +20,10 @@ import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
-import org.apache.ratis.protocol.RaftPeer;
+import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
 import org.apache.ratis.server.protocol.TermIndex;
-import org.apache.ratis.util.NetUtils;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -33,7 +33,13 @@ public class NamiServer {
   private final Server server;
   private final RaftServer raftServer;
 
-  public NamiServer(int port, RocksDB db, RaftPeer peer, File storageDir) throws IOException {
+  public NamiServer(
+      int port,
+      RocksDB db,
+      PeersConfig peersConfig,
+      PeersConfig.PeerConfig peerConfig,
+      File storageDir)
+      throws IOException {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
     VersionedKVStore kvStore = new VersionedKVStore(db);
@@ -47,15 +53,15 @@ public class NamiServer {
     RaftServerConfigKeys.setStorageDir(properties, Collections.singletonList(storageDir));
 
     // set the port (different for each peer) in RaftProperty object
-    final int raftPeerPort = NetUtils.createSocketAddr(peer.getAddress()).getPort();
+    final int raftPeerPort = peerConfig.getRaftPort();
     GrpcConfigKeys.Server.setPort(properties, raftPeerPort);
 
     // build the Raft server
     this.raftServer =
         RaftServer.newBuilder()
-            .setGroup(RaftConstants.RAFT_GROUP)
+            .setGroup(peersConfig.getRaftGroup())
             .setProperties(properties)
-            .setServerId(peer.getId())
+            .setServerId(RaftPeerId.valueOf(peerConfig.getPeerId()))
             .setStateMachine(stateMachine)
             .build();
   }
@@ -65,7 +71,11 @@ public class NamiServer {
     server.start();
     System.out.println("Server started, listening on " + port);
     raftServer.start();
-    System.out.println("Raft Server started, with id " + raftServer.getId());
+    System.out.println(
+        "Raft Server started, with id "
+            + raftServer.getId()
+            + " and config "
+            + raftServer.getDivision(PeersConfig.getRaftGroupId()));
 
     // make sure we shut down properly
     Runtime.getRuntime().addShutdownHook(new ShutdownHook());
@@ -109,6 +119,14 @@ public class NamiServer {
     System.out.println("Loaded server config " + config);
     var selfPeerId = config.getSelfPeerId();
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
+    PeersConfig.PeerConfig peerConfig =
+        peersConfig.getPeers().stream()
+            .filter(pc -> pc.getPeerId().equals(selfPeerId))
+            .findAny()
+            .orElse(null);
+    if (peerConfig == null) {
+      throw new RuntimeException("Could not find peer config for " + selfPeerId);
+    }
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
     var dataPath =
         configFile
@@ -127,18 +145,15 @@ public class NamiServer {
     System.out.println("RocksDB data will be stored in " + rocksDbPath.toAbsolutePath());
     System.out.println("Raft data will be stored in " + raftPath.toAbsolutePath());
 
-    final int peerIndex = config.getPeerIndex();
-
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
       options.setCreateIfMissing(true);
       try (var db = RocksDB.open(options, rocksDbPath.toString())) {
         // get peer and define storage dir
-        final RaftPeer currentPeer = RaftConstants.PEERS.get(peerIndex);
-        System.out.println("current Peer is " + currentPeer.getAddress());
-        System.out.println("current Peer s client address is " + currentPeer.getClientAddress());
+        System.out.println("current Peer is " + peerConfig.getRaftAddress());
         var storageDir = raftPath.toFile();
-        var server = new NamiServer(8980 + peerIndex, db, currentPeer, storageDir);
+        var server =
+            new NamiServer(peerConfig.getKvPort(), db, peersConfig, peerConfig, storageDir);
         server.start();
         server.blockUntilShutdown();
       }
@@ -155,21 +170,11 @@ public class NamiServer {
   }
 
   public static PeersConfig loadPeersConfig(File configFile, String path) {
-    return loadConfig(configFile, path, PeersConfig.class);
+    return Config.loadConfig(configFile, path, PeersConfig.class);
   }
 
   public static ChunksConfig loadChunksConfig(File configFile, String path) {
-    return loadConfig(configFile, path, ChunksConfig.class);
-  }
-
-  public static <T> T loadConfig(File configFile, String path, Class<T> clazz) {
-    var file = configFile.getParentFile().toPath().resolve(path).toFile();
-    try (var reader = Files.newReader(file, Charsets.UTF_8)) {
-      return new Gson().fromJson(reader, clazz);
-
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    return Config.loadConfig(configFile, path, ChunksConfig.class);
   }
 
   @RequiredArgsConstructor

@@ -31,7 +31,7 @@ public class RemoteStore {
         // no need to construct a remote client for yourself
         continue;
       }
-      var target = peerConfig.getAddress() + ":" + peerConfig.getKvPort();
+      var target = peerConfig.getKvAddress();
       var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
