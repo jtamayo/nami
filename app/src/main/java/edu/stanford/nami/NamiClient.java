@@ -62,7 +62,7 @@ public final class NamiClient implements Closeable {
               .setKey(readValue.getKey().key())
               .setValue(readValue.getValue())
               .build();
-      builder.addReads(inTransactionGet);
+      builder.addGets(inTransactionGet);
     }
     for (var writeValue : writtenValues.entrySet()) {
       var inTransactionPut =

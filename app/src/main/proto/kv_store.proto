@@ -43,8 +43,7 @@ message GetRequest {
 message TransactionRequest {
   // TID at which all the values are read
   int64 snapshot_tid = 1;
-  // TODO why get vs read?
-  repeated InTransactionGet reads = 2;
+  repeated InTransactionGet gets = 2;
   repeated InTransactionPut puts = 3;
 }
 

@@ -123,7 +123,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
 
   private CompletableFuture<Message> processTransaction(
       long currentTid, TransactionRequest request) {
-    for (InTransactionGet inTransactionGet : request.getReadsList()) {
+    for (InTransactionGet inTransactionGet : request.getGetsList()) {
       try {
         // TODO: special case for currentTid = 0?
         if (!this.isInTransactionGetValueValid(currentTid - 1, inTransactionGet)) {
