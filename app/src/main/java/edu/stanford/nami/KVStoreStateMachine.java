@@ -105,27 +105,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
   private boolean isInTransactionGetValueValid(long tid, InTransactionGet inTransactionGet)
       throws RocksDBException {
     NKey nKey = new NKey(inTransactionGet.getKey());
-    byte[] value;
-    int numRetries = 0;
-    while (true) {
-      // TODO: refactor try/catch
-      try {
-        value = this.kvStore.getAsOf(nKey, tid);
-        break;
-      } catch (RocksDBException e) {
-        // TODO: Handle different failure modes
-        if (numRetries <= NUM_DB_RETRIES
-            && (e.getStatus().getCode() == Status.Code.Aborted
-                || e.getStatus().getCode() == Status.Code.Expired
-                || e.getStatus().getCode() == Status.Code.TimedOut)) {
-          numRetries++;
-          System.out.println(
-              "Retrying get: " + numRetries + " out of " + NUM_DB_RETRIES + " times");
-          continue;
-        }
-        throw e;
-      }
-    }
+    byte[] value = withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, tid));
     Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
     return Arrays.equals(value, inTransactionGet.getValue().toByteArray());
   }
@@ -134,25 +114,10 @@ public class KVStoreStateMachine extends BaseStateMachine {
       throws RocksDBException {
     NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
     com.google.protobuf.ByteString value = inTransactionPut.getValue();
-    int numRetries = 0;
-    while (true) {
-      try {
-        this.kvStore.put(nvKey, value.toByteArray());
-        break;
-      } catch (RocksDBException e) {
-        // Fix this to capture transient errors vs un-retriable errors?
-        if (numRetries <= NUM_DB_RETRIES
-            && (e.getStatus().getCode() == Status.Code.Aborted
-                || e.getStatus().getCode() == Status.Code.Expired
-                || e.getStatus().getCode() == Status.Code.TimedOut)) {
-          numRetries++;
-          System.out.println("Retrying put: " + numRetries + " time");
-          continue;
-        }
-        // Eventually give up?
-        throw e;
-      }
-    }
+    withRocksDBRetries(() -> {
+      this.kvStore.put(nvKey, value.toByteArray());
+      return null;
+    });
   }
 
   private CompletableFuture<Message> processTransaction(
@@ -224,5 +189,32 @@ public class KVStoreStateMachine extends BaseStateMachine {
             new IllegalArgumentException(
                 getId() + ": Unexpected request case " + request.getRequestCase()));
     }
+  }
+
+  private <T> T withRocksDBRetries(RocksDBOperation<T> operation) {
+    int numRetries = 0;
+    while (true) {
+      try {
+        return operation.execute();
+      } catch (RocksDBException e) {
+        // Fix this to capture transient errors vs un-retriable errors?
+        if (numRetries <= NUM_DB_RETRIES
+            && (e.getStatus().getCode() == Status.Code.Aborted
+                || e.getStatus().getCode() == Status.Code.Expired
+                || e.getStatus().getCode() == Status.Code.TimedOut)) {
+          numRetries++;
+          System.out.println("Retrying operation: " + numRetries + " time");
+          e.printStackTrace();
+          continue;
+        }
+        // Eventually give up, something's very broken
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
+  @FunctionalInterface
+  public static interface RocksDBOperation<T> {
+    T execute() throws RocksDBException;
   }
 }
