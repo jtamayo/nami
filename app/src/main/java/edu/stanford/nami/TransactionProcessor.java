@@ -1,11 +1,10 @@
 package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.Status;
-
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.Status;
 
 public class TransactionProcessor {
   private final VersionedKVStore kvStore;
@@ -13,7 +12,8 @@ public class TransactionProcessor {
   private final CachingStore cachingStore;
   private static final int NUM_DB_RETRIES = 3;
 
-  public TransactionProcessor(VersionedKVStore kvStore, RemoteStore remoteStore, CachingStore cachingStore) {
+  public TransactionProcessor(
+      VersionedKVStore kvStore, RemoteStore remoteStore, CachingStore cachingStore) {
     this.kvStore = kvStore;
     this.remoteStore = remoteStore;
     this.cachingStore = cachingStore;
@@ -38,7 +38,8 @@ public class TransactionProcessor {
     } else if ((value = this.cachingStore.get(nvKey)) == null) {
       // Retry here if fails?
       ByteBuffer remoteValue = this.remoteStore.get(nvKey);
-      Preconditions.checkState(remoteValue != null, "Remote fetched for a key that does not exist: " + nKey);
+      Preconditions.checkState(
+          remoteValue != null, "Remote fetched for a key that does not exist: " + nKey);
       value = remoteValue.asReadOnlyBuffer().array();
       // Also add this to the cachingStore?
       this.cachingStore.put(nvKey, value);

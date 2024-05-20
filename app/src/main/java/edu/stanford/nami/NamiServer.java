@@ -15,6 +15,7 @@ import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,8 @@ public class NamiServer {
     TransactionProcessor transactionProcessor =
         new TransactionProcessor(kvStore, remoteStore, cachingStore);
     KVStoreStateMachine stateMachine = new KVStoreStateMachine(transactionProcessor);
-    server = serverBuilder.addService(new KVStoreService(kvStore, stateMachine)).build();
+    server =
+        serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
 
     // create a property object
     final RaftProperties properties = new RaftProperties();
@@ -201,13 +203,21 @@ public class NamiServer {
   @RequiredArgsConstructor
   private static class KVStoreService extends KVStoreGrpc.KVStoreImplBase {
     private final VersionedKVStore kvStore;
+    private final RemoteStore remoteStore;
     private final KVStoreStateMachine stateMachine;
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+      NKey nKey = new NKey(request.getKey().getKey());
+      byte[] value;
       try {
-        byte[] value =
-            this.kvStore.getAsOf(new NKey(request.getKey().getKey()), request.getKey().getTid());
+        if (this.kvStore.hasKeyInAllocation(nKey)) {
+          value = this.kvStore.getAsOf(nKey, request.getKey().getTid());
+        } else {
+          NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
+          ByteBuffer byteBuffer = this.remoteStore.get(nvKey);
+          value = ByteString.copyFrom(byteBuffer).toByteArray();
+        }
         Preconditions.checkNotNull(value);
         GetResponse response =
             GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();

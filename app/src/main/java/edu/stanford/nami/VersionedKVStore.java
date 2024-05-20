@@ -45,7 +45,8 @@ public class VersionedKVStore {
 
   public boolean hasKeyInAllocation(NKey key) {
     var keyChunk = keyToChunkMapper.map(key);
-    return peerAllocation.ranges().stream().anyMatch(range -> range.min() <= keyChunk && keyChunk <= range.max());
+    return peerAllocation.ranges().stream()
+        .anyMatch(range -> range.min() <= keyChunk && keyChunk <= range.max());
   }
 
   public byte[] getExactlyAtVersion(NVKey key) throws RocksDBException {
@@ -54,7 +55,8 @@ public class VersionedKVStore {
 
   /** Get a value as of tid or before it. */
   public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
-    Preconditions.checkArgument(this.hasKeyInAllocation(key), "tid is not in this store's allocation");
+    Preconditions.checkArgument(
+        this.hasKeyInAllocation(key), "tid is not in this store's allocation");
     Preconditions.checkArgument(tid > 0, "tid must be non negative");
     try (RocksIterator it = db.newIterator()) {
       // seek to last possible transaction
