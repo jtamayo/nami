@@ -67,7 +67,7 @@ public final class BankingApp {
 
     ManagedChannel channel =
         Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
-    try (NamiClient client = new NamiClient(channel, peersConfig)) {
+    try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
       new BankingApp(client).run();
       System.out.println("Done running banking app");
     } catch (Throwable e) {

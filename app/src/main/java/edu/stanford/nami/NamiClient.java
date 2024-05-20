@@ -4,25 +4,31 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import io.grpc.ManagedChannel;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientReply;
 
-public final class NamiClient implements Closeable {
-  private final KVStoreGrpc.KVStoreBlockingStub blockingStub;
+public final class NamiClient implements AutoCloseable {
+  /** Give each client a unique identifier, useful for debugging and telling the RemoteStore this process has no data. */
+  private final String clientId = UUID.randomUUID().toString();
   private final RaftClient raftClient;
+  private final RemoteStore remoteStore;
 
   @Override
   public void close() throws IOException {
     raftClient.close();
+    remoteStore.close();
   }
 
   // build the client
@@ -33,24 +39,21 @@ public final class NamiClient implements Closeable {
         .build();
   }
 
-  public NamiClient(ManagedChannel channel, PeersConfig peersConfig) {
-    blockingStub = KVStoreGrpc.newBlockingStub(channel);
+  public NamiClient(PeersConfig peersConfig, ChunksConfig chunksConfig) {
     raftClient = newRaftClient(peersConfig);
+    remoteStore = new RemoteStore(clientId, peersConfig, chunksConfig);
   }
 
   public long getRecentTid() {
     var request = GetRecentTidRequest.newBuilder().build();
-    var response = blockingStub.getRecentTid(request);
+    var response = remoteStore.getArbitraryPeer().getRecentTid(request);
     var recentTid = response.getTid();
     System.out.println("Recent TID: " + recentTid);
     return response.getTid();
   }
 
   public ByteString get(long tid, String key) {
-    ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key).build();
-    GetRequest request = GetRequest.newBuilder().setKey(protoVKey).build();
-    GetResponse response = blockingStub.get(request);
-    return response.getValue();
+    return remoteStore.getAsOf(new NKey(key), tid);
   }
 
   public TransactionResponse commit(
