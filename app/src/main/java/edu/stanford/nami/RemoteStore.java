@@ -3,9 +3,7 @@ package edu.stanford.nami;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Closeables;
 import com.google.protobuf.ByteString;
-
 import edu.stanford.nami.Chunks.ChunkRange;
 import edu.stanford.nami.Chunks.PeerAllocation;
 import edu.stanford.nami.config.ChunksConfig;
@@ -13,11 +11,11 @@ import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.PeersConfig.PeerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
-import java.nio.ByteBuffer;
-import java.util.Map;
+import io.grpc.ManagedChannel;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
-import java.lang.AutoCloseable;
+import java.util.concurrent.TimeUnit;
 
 public class RemoteStore implements AutoCloseable {
   private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
@@ -25,6 +23,7 @@ public class RemoteStore implements AutoCloseable {
   private final ChunksConfig chunksConfig;
   private final Map<String, KVStoreGrpc.KVStoreBlockingStub> peerClients;
   private final List<String> peerNames;
+  private final List<ManagedChannel> peerChannels;
 
   public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
     Preconditions.checkNotNull(selfId);
@@ -32,6 +31,7 @@ public class RemoteStore implements AutoCloseable {
     Preconditions.checkNotNull(chunksConfig);
 
     var peerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreBlockingStub>builder();
+    var peerChannelsBuilder = ImmutableList.<ManagedChannel>builder();
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
@@ -43,8 +43,10 @@ public class RemoteStore implements AutoCloseable {
       var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
+      peerChannelsBuilder.add(channel);
     }
     this.peerClients = peerClientsBuilder.build();
+    this.peerChannels = peerChannelsBuilder.build();
     this.peerNames = ImmutableList.copyOf(peerClients.keySet());
     this.chunksConfig = chunksConfig;
     this.selfId = selfId;
@@ -59,8 +61,8 @@ public class RemoteStore implements AutoCloseable {
   }
 
   /**
-   * Pick a peer at random out of all the known peers. Good for balancing load when
-   * any one peer could answer a query.
+   * Pick a peer at random out of all the known peers. Good for balancing load when any one peer
+   * could answer a query.
    */
   public KVStoreGrpc.KVStoreBlockingStub getArbitraryPeer() {
     var peerIndex = new Random().nextInt(peerNames.size());
@@ -68,8 +70,28 @@ public class RemoteStore implements AutoCloseable {
   }
 
   @Override
-  public void close() {
-    // TODO implement this
+  public void close() throws Exception {
+    // Not really sure is worth separating these two, but I'll just follow whatever
+    // ratis does
+    shutdown();
+  }
+
+  public void shutdown() throws InterruptedException {
+    for (var channel : this.peerChannels) {
+      channel.shutdown();
+    }
+    boolean interrupted = false;
+    for (var channel : this.peerChannels) {
+      try {
+        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+        interrupted = true;
+      }
+    }
+    if (interrupted) {
+      throw new InterruptedException();
+    }
   }
 
   private KVStoreGrpc.KVStoreBlockingStub findPeerWithKey(NKey key) {

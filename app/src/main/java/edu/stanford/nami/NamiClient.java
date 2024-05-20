@@ -4,11 +4,9 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
-import io.grpc.ManagedChannel;
-import java.io.Closeable;
+import edu.stanford.nami.utils.AutoCloseables;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -20,15 +18,18 @@ import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientReply;
 
 public final class NamiClient implements AutoCloseable {
-  /** Give each client a unique identifier, useful for debugging and telling the RemoteStore this process has no data. */
+  /**
+   * Give each client a unique identifier, useful for debugging and telling the RemoteStore this
+   * process has no data.
+   */
   private final String clientId = UUID.randomUUID().toString();
+
   private final RaftClient raftClient;
   private final RemoteStore remoteStore;
 
   @Override
-  public void close() throws IOException {
-    raftClient.close();
-    remoteStore.close();
+  public void close() throws Exception {
+    AutoCloseables.closeSafely(raftClient, remoteStore);
   }
 
   // build the client

@@ -13,9 +13,6 @@ import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
 import edu.stanford.nami.config.Config;
 import edu.stanford.nami.config.PeersConfig;
-import io.grpc.Grpc;
-import io.grpc.InsecureChannelCredentials;
-import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -23,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -60,20 +56,11 @@ public final class BankingApp {
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
 
-    // TODO connect to other peers besides the first one
-    var firstPeerConfig = peersConfig.getPeers().get(0);
-
-    String target = firstPeerConfig.getKvAddress();
-
-    ManagedChannel channel =
-        Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
     try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
       new BankingApp(client).run();
       System.out.println("Done running banking app");
-    } catch (Throwable e) {
+    } catch (Exception e) {
       e.printStackTrace();
-    } finally {
-      channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
     }
   }
 
