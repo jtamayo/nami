@@ -96,12 +96,12 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private CompletableFuture<Message> processTransaction(
+  private Message processTransaction(
       long currentTid, TransactionRequest request, boolean isLeader) {
     TransactionStatus status =
         this.transactionProcessor.processTransaction(request, currentTid, isLeader);
     ByteString byteString = constructTransactionResponse(status);
-    return CompletableFuture.completedFuture(Message.valueOf(byteString));
+    return Message.valueOf(byteString);
   }
 
   private ByteString constructTransactionResponse(TransactionStatus status) {
@@ -112,15 +112,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
             .toByteString());
   }
 
-  /**
-   * Apply the Put request by adding the value to rocksdb
-   *
-   * @param trx the transaction context
-   * @return the message containing the updated counter value
-   */
-  @Override
-  public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
-    System.out.println("Applying transaction");
+  private Message applyTransactionImpl(TransactionContext trx) {
     final RaftProtos.LogEntryProto entry = trx.getLogEntry();
     final long index = entry.getIndex();
     // TODO: Need to move this to after processing the transaction
@@ -140,9 +132,26 @@ public class KVStoreStateMachine extends BaseStateMachine {
         return processTransaction(index, request.getTransaction(), isLeader);
       default:
         System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
-        return JavaUtils.completeExceptionally(
-            new IllegalArgumentException(
-                getId() + ": Unexpected request case " + request.getRequestCase()));
+        throw new IllegalArgumentException(getId() + ": Unexpected request case " + request.getRequestCase());
+    }
+  }
+
+  /**
+   * Apply the Put request by adding the value to rocksdb
+   *
+   * @param trx the transaction context
+   * @return the message containing the updated counter value
+   */
+  @Override
+  public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
+    System.out.println("Applying transaction");
+    try {
+      var message = applyTransactionImpl(trx);
+      System.out.println("Done applying transaction");
+      return CompletableFuture.completedFuture(message);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return JavaUtils.completeExceptionally(e);
     }
   }
 }
