@@ -22,7 +22,7 @@ import org.apache.ratis.util.JavaUtils;
 
 public class KVStoreStateMachine extends BaseStateMachine {
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
-  TransactionProcessor transactionProcessor;
+  private final TransactionProcessor transactionProcessor;
 
   public KVStoreStateMachine(TransactionProcessor transactionProcessor) {
     this.transactionProcessor = transactionProcessor;
@@ -115,8 +115,6 @@ public class KVStoreStateMachine extends BaseStateMachine {
   private Message applyTransactionImpl(TransactionContext trx) {
     final RaftProtos.LogEntryProto entry = trx.getLogEntry();
     final long index = entry.getIndex();
-    // TODO: Need to move this to after processing the transaction
-    updateLastAppliedTermIndex(entry.getTerm(), index);
 
     final TermIndex termIndex = TermIndex.valueOf(entry);
     final KVStoreRaftRequest request = getProto(trx, entry);
@@ -127,13 +125,21 @@ public class KVStoreStateMachine extends BaseStateMachine {
       System.out.println(termIndex + ": Applying transaction " + request.getRequestCase());
     }
 
+    Message message;
     switch (request.getRequestCase()) {
       case TRANSACTION:
-        return processTransaction(index, request.getTransaction(), isLeader);
+        message = processTransaction(index, request.getTransaction(), isLeader);
+        break;
       default:
         System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
-        throw new IllegalArgumentException(getId() + ": Unexpected request case " + request.getRequestCase());
+        throw new IllegalArgumentException(
+            getId() + ": Unexpected request case " + request.getRequestCase());
     }
+
+    // TODO: Need to move this to after processing the transaction
+    updateLastAppliedTermIndex(entry.getTerm(), index);
+
+    return message;
   }
 
   /**

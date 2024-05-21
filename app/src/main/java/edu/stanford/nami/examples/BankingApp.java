@@ -82,6 +82,9 @@ public final class BankingApp {
 
   public void run() throws InterruptedException {
     var accountKeys = createAccounts();
+
+    Thread.sleep(1000);
+
     // INVARIANT: all account balances should add up to zero
     validateZeroNetBalance(accountKeys);
 
@@ -96,6 +99,9 @@ public final class BankingApp {
       System.out.println("Waiting on worker " + worker.workerIndex);
       worker.join();
     }
+
+    Thread.sleep(1000);
+
     // INVARIANT: after all movements, all balances should add up to zero
     validateZeroNetBalance(accountKeys);
   }

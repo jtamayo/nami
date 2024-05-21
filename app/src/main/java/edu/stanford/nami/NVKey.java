@@ -8,7 +8,7 @@ record NVKey(long tid, String key) {
   public static final int TID_BYTE_SIZE = 8;
 
   public NVKey(long tid, String key) {
-    Preconditions.checkArgument(tid > 0, "tid must be positive");
+    // Preconditions.checkArgument(tid > 0, "tid must be positive");
     NKey.checkIsValidNKey(key);
     this.tid = tid;
     this.key = key;

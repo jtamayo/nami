@@ -31,6 +31,7 @@ public class VersionedKVStore {
 
   private final RocksDB db;
   private final Chunks.PeerAllocation peerAllocation;
+  private final TidSynchronizer tidSynchronizer = new TidSynchronizer();
 
   public VersionedKVStore(RocksDB db, Chunks.PeerAllocation peerAllocation) {
     this.db = db;
@@ -41,6 +42,9 @@ public class VersionedKVStore {
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
+    // TODO this is wrong: we'll update tid before all values have been updated
+    // we need to move all puts to this store and apply them in a rocks transaction
+    tidSynchronizer.updateLatestTid(key.tid());
   }
 
   public boolean hasKeyInAllocation(NKey key) {
@@ -57,7 +61,9 @@ public class VersionedKVStore {
   public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key), "tid is not in this store's allocation");
-    Preconditions.checkArgument(tid > 0, "tid must be non negative");
+    // Preconditions.checkArgument(tid > 0, "tid must be non negative");
+    // sanity check: make sure we're past the requested tid
+    tidSynchronizer.checkHasSeenTid(tid);
     try (RocksIterator it = db.newIterator()) {
       // seek to last possible transaction
       // TODO: use prefix search to prune search space
@@ -83,5 +89,39 @@ public class VersionedKVStore {
 
   public byte[] getLatest(NKey key) throws RocksDBException {
     return getAsOf(key, Long.MAX_VALUE);
+  }
+
+  public void waitUtilTid(long tid, long timeoutMillis) throws InterruptedException {
+    this.tidSynchronizer.waitUtilTid(tid, timeoutMillis);
+  }
+
+  public long getLatestTid() {
+    // HACK probably should grab the lock to be safe, but volatile should be enough
+    return this.tidSynchronizer.latestTid;
+  }
+
+  private static final class TidSynchronizer {
+    private volatile long latestTid;
+
+    public synchronized void updateLatestTid(long tid) {
+      if (this.latestTid < tid) {
+        this.latestTid = tid;
+        this.notifyAll();
+      }
+    }
+
+    public synchronized void checkHasSeenTid(long tid) {
+      Preconditions.checkState(
+          this.latestTid >= tid,
+          "tid " + tid + " has not been processed, latest tid is " + latestTid);
+    }
+
+    /** Waits until this synchronizer has reached or passed the provided tid. */
+    public synchronized void waitUtilTid(long tid, long timeoutMillis) throws InterruptedException {
+      while (latestTid < tid) {
+        // TODO this is the wrong time to wait, I need to subtract the time I've waited already
+        this.wait(timeoutMillis);
+      }
+    }
   }
 }
