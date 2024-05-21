@@ -215,8 +215,7 @@ public class NamiServer {
         if (this.kvStore.hasKeyInAllocation(nKey)) {
           value = this.kvStore.getAsOf(nKey, request.getKey().getTid());
         } else {
-          ByteBuffer byteBuffer = this.remoteStore.getAsOf(new NKey(request.getKey().getKey()), request.getKey().getTid()).asReadOnlyByteBuffer();
-          value = ByteString.copyFrom(byteBuffer).toByteArray();
+          throw new RuntimeException("Client asked for a key that is not in this store's allocation");
         }
         Preconditions.checkNotNull(value);
         GetResponse response =

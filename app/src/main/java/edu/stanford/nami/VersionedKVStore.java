@@ -39,7 +39,7 @@ public class VersionedKVStore {
 
   public void put(NVKey key, byte[] value) throws RocksDBException {
     Preconditions.checkArgument(
-        this.hasKeyInAllocation(new NKey(key.key())), "tid is not in this store's allocation");
+        this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
   }
 
