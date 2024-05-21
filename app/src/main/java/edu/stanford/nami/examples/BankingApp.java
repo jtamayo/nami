@@ -159,7 +159,7 @@ public final class BankingApp {
         moveMoneyInTransaction(tx);
         TransactionStatus outcome = tx.commit();
         if (outcome == TransactionStatus.UNKNOWN) {
-          System.out.println("GOT UNKNOWN TRANSACTION!");
+          throw new RuntimeException("GOT UNKNOWN TRANSACTION!");
         }
         if (outcome == TransactionStatus.COMMITTED) {
           break;
