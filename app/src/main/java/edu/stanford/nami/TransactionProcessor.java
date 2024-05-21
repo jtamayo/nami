@@ -37,7 +37,7 @@ public class TransactionProcessor {
       value = withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, tid));
     } else if ((value = this.cachingStore.get(nvKey)) == null) {
       // Retry here if fails?
-      ByteBuffer remoteValue = this.remoteStore.get(nvKey);
+      ByteBuffer remoteValue = this.remoteStore.getAsOf(nKey, tid).asReadOnlyByteBuffer();
       Preconditions.checkState(
           remoteValue != null, "Remote fetched for a key that does not exist: " + nKey);
       value = remoteValue.asReadOnlyBuffer().array();

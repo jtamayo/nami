@@ -214,8 +214,7 @@ public class NamiServer {
         if (this.kvStore.hasKeyInAllocation(nKey)) {
           value = this.kvStore.getAsOf(nKey, request.getKey().getTid());
         } else {
-          NVKey nvKey = new NVKey(request.getKey().getTid(), request.getKey().getKey());
-          ByteBuffer byteBuffer = this.remoteStore.get(nvKey);
+          ByteBuffer byteBuffer = this.remoteStore.getAsOf(new NKey(request.getKey().getKey()), request.getKey().getTid()).asReadOnlyByteBuffer();
           value = ByteString.copyFrom(byteBuffer).toByteArray();
         }
         Preconditions.checkNotNull(value);
