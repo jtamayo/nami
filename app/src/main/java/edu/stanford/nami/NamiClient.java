@@ -29,6 +29,7 @@ public final class NamiClient implements AutoCloseable {
 
   @Override
   public void close() throws Exception {
+    System.out.println("Closing NamiClient");
     AutoCloseables.closeSafely(raftClient, remoteStore);
   }
 
@@ -112,7 +113,7 @@ public final class NamiClient implements AutoCloseable {
         client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 
     if (reply == null || !reply.isSuccess()) {
-      System.err.println("Failed to get counter from " + client.getId() + " with reply = " + reply);
+      System.err.println("Failed to get response from " + client.getId() + " with reply = " + reply);
       return;
     }
 

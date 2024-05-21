@@ -15,6 +15,7 @@ import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
@@ -38,13 +39,20 @@ public class NamiServer {
       RocksDB db,
       PeersConfig peersConfig,
       PeersConfig.PeerConfig peerConfig,
+      ChunksConfig chunksConfig,
+      Chunks.PeerAllocation peerAllocation,
       File storageDir)
       throws IOException {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
-    VersionedKVStore kvStore = new VersionedKVStore(db);
-    KVStoreStateMachine stateMachine = new KVStoreStateMachine(kvStore);
-    server = serverBuilder.addService(new KVStoreService(kvStore, stateMachine)).build();
+    VersionedKVStore kvStore = new VersionedKVStore(db, peerAllocation);
+    RemoteStore remoteStore = new RemoteStore(peerConfig.getPeerId(), peersConfig, chunksConfig);
+    CachingStore cachingStore = new CachingStore();
+    TransactionProcessor transactionProcessor =
+        new TransactionProcessor(kvStore, remoteStore, cachingStore);
+    KVStoreStateMachine stateMachine = new KVStoreStateMachine(transactionProcessor);
+    server =
+        serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
 
     // create a property object
     final RaftProperties properties = new RaftProperties();
@@ -84,6 +92,7 @@ public class NamiServer {
   /** Stop serving requests and shutdown resources. */
   public void stop() throws InterruptedException, IOException {
     if (raftServer != null) {
+      System.out.println("Shutting down Raft Server");
       raftServer.close();
     }
     if (server != null) {
@@ -128,6 +137,14 @@ public class NamiServer {
       throw new RuntimeException("Could not find peer config for " + selfPeerId);
     }
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
+    var peerAllocation =
+        chunksConfig.getPeerAllocations().stream()
+            .filter(pa -> pa.peerId().equals(selfPeerId))
+            .findAny()
+            .orElse(null);
+    if (peerAllocation == null) {
+      throw new RuntimeException("Could not find peer allocation for " + selfPeerId);
+    }
     var dataPath =
         configFile
             .getParentFile()
@@ -153,7 +170,14 @@ public class NamiServer {
         System.out.println("current Peer is " + peerConfig.getRaftAddress());
         var storageDir = raftPath.toFile();
         var server =
-            new NamiServer(peerConfig.getKvPort(), db, peersConfig, peerConfig, storageDir);
+            new NamiServer(
+                peerConfig.getKvPort(),
+                db,
+                peersConfig,
+                peerConfig,
+                chunksConfig,
+                peerAllocation,
+                storageDir);
         server.start();
         server.blockUntilShutdown();
       }
@@ -180,13 +204,19 @@ public class NamiServer {
   @RequiredArgsConstructor
   private static class KVStoreService extends KVStoreGrpc.KVStoreImplBase {
     private final VersionedKVStore kvStore;
+    private final RemoteStore remoteStore;
     private final KVStoreStateMachine stateMachine;
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+      NKey nKey = new NKey(request.getKey().getKey());
+      byte[] value;
       try {
-        byte[] value =
-            this.kvStore.getAsOf(new NKey(request.getKey().getKey()), request.getKey().getTid());
+        if (this.kvStore.hasKeyInAllocation(nKey)) {
+          value = this.kvStore.getAsOf(nKey, request.getKey().getTid());
+        } else {
+          throw new RuntimeException("Client asked for a key that is not in this store's allocation");
+        }
         Preconditions.checkNotNull(value);
         GetResponse response =
             GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();

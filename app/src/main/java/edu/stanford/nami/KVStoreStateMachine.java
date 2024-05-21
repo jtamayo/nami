@@ -3,11 +3,9 @@ package edu.stanford.nami;
 import static edu.stanford.nami.ProtoUtils.convertToGoogleByteString;
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
-import com.google.common.base.Preconditions;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
@@ -21,17 +19,13 @@ import org.apache.ratis.statemachine.impl.BaseStateMachine;
 import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.JavaUtils;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.Status;
 
 public class KVStoreStateMachine extends BaseStateMachine {
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
-  private static final int NUM_DB_RETRIES = 3;
+  TransactionProcessor transactionProcessor;
 
-  private final VersionedKVStore kvStore;
-
-  public KVStoreStateMachine(VersionedKVStore kvStore) {
-    this.kvStore = kvStore;
+  public KVStoreStateMachine(TransactionProcessor transactionProcessor) {
+    this.transactionProcessor = transactionProcessor;
   }
 
   /**
@@ -102,48 +96,44 @@ public class KVStoreStateMachine extends BaseStateMachine {
     }
   }
 
-  private boolean isInTransactionGetValueValid(long tid, InTransactionGet inTransactionGet) {
-    NKey nKey = new NKey(inTransactionGet.getKey());
-    byte[] value = withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, tid));
-    Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
-    return Arrays.equals(value, inTransactionGet.getValue().toByteArray());
-  }
-
-  private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut) {
-    NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
-    com.google.protobuf.ByteString value = inTransactionPut.getValue();
-    withRocksDBRetries(
-        () -> {
-          this.kvStore.put(nvKey, value.toByteArray());
-          return null;
-        });
-  }
-
-  private CompletableFuture<Message> processTransaction(
-      long currentTid, TransactionRequest request) {
-    for (InTransactionGet inTransactionGet : request.getGetsList()) {
-      // TODO: special case for currentTid = 0?
-      if (!this.isInTransactionGetValueValid(currentTid - 1, inTransactionGet)) {
-        var byteString = constructTransactionResponse(TransactionStatus.CONFLICT_ABORTED);
-        return CompletableFuture.completedFuture(Message.valueOf(byteString));
-      }
-    }
-    for (InTransactionPut inTransactionPut : request.getPutsList()) {
-      this.processInTransactionPut(currentTid, inTransactionPut);
-    }
-    ByteString byteString = constructTransactionResponse(TransactionStatus.COMMITTED);
-    return CompletableFuture.completedFuture(Message.valueOf(byteString));
+  private Message processTransaction(
+      long currentTid, TransactionRequest request, boolean isLeader) {
+    TransactionStatus status =
+        this.transactionProcessor.processTransaction(request, currentTid, isLeader);
+    ByteString byteString = constructTransactionResponse(status);
+    return Message.valueOf(byteString);
   }
 
   private ByteString constructTransactionResponse(TransactionStatus status) {
-    ByteString byteString =
-        convertToRatisByteString(
-            KVStoreRaftResponse.newBuilder()
-                .setTransaction(
-                    TransactionResponse.newBuilder().setStatus(TransactionStatus.CONFLICT_ABORTED))
-                .build()
-                .toByteString());
-    return byteString;
+    return convertToRatisByteString(
+        KVStoreRaftResponse.newBuilder()
+            .setTransaction(TransactionResponse.newBuilder().setStatus(status))
+            .build()
+            .toByteString());
+  }
+
+  private Message applyTransactionImpl(TransactionContext trx) {
+    final RaftProtos.LogEntryProto entry = trx.getLogEntry();
+    final long index = entry.getIndex();
+    // TODO: Need to move this to after processing the transaction
+    updateLastAppliedTermIndex(entry.getTerm(), index);
+
+    final TermIndex termIndex = TermIndex.valueOf(entry);
+    final KVStoreRaftRequest request = getProto(trx, entry);
+
+    // if leader, log the transaction and the term-index
+    boolean isLeader = trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER;
+    if (isLeader) {
+      System.out.println(termIndex + ": Applying transaction " + request.getRequestCase());
+    }
+
+    switch (request.getRequestCase()) {
+      case TRANSACTION:
+        return processTransaction(index, request.getTransaction(), isLeader);
+      default:
+        System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
+        throw new IllegalArgumentException(getId() + ": Unexpected request case " + request.getRequestCase());
+    }
   }
 
   /**
@@ -155,54 +145,13 @@ public class KVStoreStateMachine extends BaseStateMachine {
   @Override
   public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
     System.out.println("Applying transaction");
-    final RaftProtos.LogEntryProto entry = trx.getLogEntry();
-    final long index = entry.getIndex();
-    // TODO: Need to move this to after processing the transaction
-    updateLastAppliedTermIndex(entry.getTerm(), index);
-
-    final TermIndex termIndex = TermIndex.valueOf(entry);
-    final KVStoreRaftRequest request = getProto(trx, entry);
-
-    // if leader, log the transaction and the term-index
-    if (trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER) {
-      System.out.println(termIndex + ": Applying transaction " + request.getRequestCase());
+    try {
+      var message = applyTransactionImpl(trx);
+      System.out.println("Done applying transaction");
+      return CompletableFuture.completedFuture(message);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return JavaUtils.completeExceptionally(e);
     }
-
-    switch (request.getRequestCase()) {
-      case TRANSACTION:
-        return processTransaction(index, request.getTransaction());
-      default:
-        System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
-        return JavaUtils.completeExceptionally(
-            new IllegalArgumentException(
-                getId() + ": Unexpected request case " + request.getRequestCase()));
-    }
-  }
-
-  private <T> T withRocksDBRetries(RocksDBOperation<T> operation) {
-    int numRetries = 0;
-    while (true) {
-      try {
-        return operation.execute();
-      } catch (RocksDBException e) {
-        // Fix this to capture transient errors vs un-retriable errors?
-        if (numRetries <= NUM_DB_RETRIES
-            && (e.getStatus().getCode() == Status.Code.Aborted
-                || e.getStatus().getCode() == Status.Code.Expired
-                || e.getStatus().getCode() == Status.Code.TimedOut)) {
-          numRetries++;
-          System.out.println("Retrying operation: " + numRetries + " time");
-          e.printStackTrace();
-          continue;
-        }
-        // Eventually give up, something's very broken
-        throw new RuntimeException(e);
-      }
-    }
-  }
-
-  @FunctionalInterface
-  public static interface RocksDBOperation<T> {
-    T execute() throws RocksDBException;
   }
 }

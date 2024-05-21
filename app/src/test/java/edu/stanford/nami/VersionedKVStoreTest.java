@@ -2,19 +2,23 @@ package edu.stanford.nami;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
 import org.junit.jupiter.api.Test;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
 public class VersionedKVStoreTest extends RocksDBTest {
+  private static final Chunks.PeerAllocation PEER_ALLOCATION =
+      new Chunks.PeerAllocation("peer-test", Lists.newArrayList(new Chunks.ChunkRange(1, 1000)));
+
   @Test
   void testHappyPutGet() throws RocksDBException {
     try (RocksDB db = newTransientDB()) {
       String expected = "hello world";
       var key = new NVKey(123, "abc");
       var values = expected.getBytes();
-      var vkv = new VersionedKVStore(db);
+      var vkv = new VersionedKVStore(db, PEER_ALLOCATION);
 
       // put the values in the store
       vkv.put(key, values);
@@ -30,7 +34,7 @@ public class VersionedKVStoreTest extends RocksDBTest {
     try (RocksDB db = newTransientDB()) {
       var key = "abcd";
       var nkey = new NKey(key);
-      var vkv = new VersionedKVStore(db);
+      var vkv = new VersionedKVStore(db, PEER_ALLOCATION);
 
       // a get on an empty db returns null
       var emptyResult = vkv.getLatest(nkey);
@@ -63,7 +67,7 @@ public class VersionedKVStoreTest extends RocksDBTest {
       var evilTidString = "bbbbbbbb";
       var evilTid = Longs.fromByteArray(evilTidString.getBytes());
 
-      var vkv = new VersionedKVStore(db);
+      var vkv = new VersionedKVStore(db, PEER_ALLOCATION);
 
       // write a single value, with tid made up of a bunch of 'a's
       vkv.put(new NVKey(evilTid, bbb), "one".getBytes());
@@ -90,7 +94,7 @@ public class VersionedKVStoreTest extends RocksDBTest {
     try (RocksDB db = newTransientDB()) {
       var key = "abcd";
       var nkey = new NKey(key);
-      var vkv = new VersionedKVStore(db);
+      var vkv = new VersionedKVStore(db, PEER_ALLOCATION);
       byte[] value;
 
       // a get on an empty db returns null

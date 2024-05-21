@@ -158,6 +158,9 @@ public final class BankingApp {
         var tx = ClientTransaction.begin(client);
         moveMoneyInTransaction(tx);
         TransactionStatus outcome = tx.commit();
+        if (outcome == TransactionStatus.UNKNOWN) {
+          throw new RuntimeException("GOT UNKNOWN TRANSACTION!");
+        }
         if (outcome == TransactionStatus.COMMITTED) {
           break;
         }

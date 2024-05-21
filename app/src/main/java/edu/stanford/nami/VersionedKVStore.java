@@ -27,15 +27,26 @@ public class VersionedKVStore {
   // TODO: do I need to store tid as part of every transaction? I need every write to be atomic,
   // and AFAICT, put doesn't necessarily flush to disk. I also need to know that, if I crash,
   // I'll know where to restart.
+  private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
 
   private final RocksDB db;
+  private final Chunks.PeerAllocation peerAllocation;
 
-  public VersionedKVStore(RocksDB db) {
+  public VersionedKVStore(RocksDB db, Chunks.PeerAllocation peerAllocation) {
     this.db = db;
+    this.peerAllocation = peerAllocation;
   }
 
   public void put(NVKey key, byte[] value) throws RocksDBException {
+    Preconditions.checkArgument(
+        this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
+  }
+
+  public boolean hasKeyInAllocation(NKey key) {
+    var keyChunk = keyToChunkMapper.map(key);
+    return peerAllocation.ranges().stream()
+        .anyMatch(range -> range.min() <= keyChunk && keyChunk <= range.max());
   }
 
   public byte[] getExactlyAtVersion(NVKey key) throws RocksDBException {
@@ -44,6 +55,8 @@ public class VersionedKVStore {
 
   /** Get a value as of tid or before it. */
   public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
+    Preconditions.checkArgument(
+        this.hasKeyInAllocation(key), "tid is not in this store's allocation");
     Preconditions.checkArgument(tid > 0, "tid must be non negative");
     try (RocksIterator it = db.newIterator()) {
       // seek to last possible transaction
