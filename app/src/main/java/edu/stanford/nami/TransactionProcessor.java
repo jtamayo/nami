@@ -42,22 +42,11 @@ public class TransactionProcessor {
       value =
           ByteString.copyFrom(
               withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, previousTransactionTid)));
-    } else {
+    } else if ((value = this.cachingStore.get(nKey)) == null) {
       value = this.remoteStore.getAsOf(nKey, previousTransactionTid);
+      // Also add this to the cachingStore?
+      this.cachingStore.put(nKey, value);
     }
-    // TODO bring back caching store
-    // if ((value = this.cachingStore.get(nvKey)) == null) {
-    // NVKey nvKey = new NVKey(previousTransactionTid, inTransactionGet.getKey());
-    // Retry here if fails?
-    // ByteBuffer remoteValue = this.remoteStore.getAsOf(nKey,
-    // previousTransactionTid).asReadOnlyByteBuffer();
-    // Preconditions.checkState(
-    //     remoteValue != null, "Remote fetched for a key that does not exist: " + nKey);
-    // value = remoteValue.asReadOnlyBuffer().array();
-    // // Also add this to the cachingStore?
-    // this.cachingStore.put(nvKey, value);
-    // value = null;
-    // }
     Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
     return Objects.equals(value, inTransactionGet.getValue());
   }
@@ -72,15 +61,13 @@ public class TransactionProcessor {
             return null;
           });
     } else {
-      this.cachingStore.put(nvKey, value.toByteArray());
+      this.cachingStore.put(nvKey.nKey(), value);
     }
   }
 
   private void invalidateTransactionPut(long currentTid, InTransactionPut inTransactionPut) {
     NKey nKey = new NKey(inTransactionPut.getKey());
-    // TODO this invalidate refers to the wrong tid (tid - 1 vs prior tid)
-    // it might not matter if we simply store NKeys in the cache
-    this.cachingStore.invalidate(currentTid - 1, nKey);
+    this.cachingStore.invalidate(nKey);
   }
 
   public TransactionStatus processTransaction(
