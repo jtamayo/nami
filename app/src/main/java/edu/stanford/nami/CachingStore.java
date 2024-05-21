@@ -9,7 +9,8 @@ public class CachingStore {
   public CachingStore() {}
 
   public byte[] get(NVKey key) {
-    return lruCache.get(key);
+//    return lruCache.get(key);
+    return null;
   }
 
   public void invalidate(long tid, NKey key) {
@@ -18,6 +19,6 @@ public class CachingStore {
   }
 
   public void put(NVKey key, byte[] value) {
-    this.lruCache.put(key, value);
+//    this.lruCache.put(key, value);
   }
 }

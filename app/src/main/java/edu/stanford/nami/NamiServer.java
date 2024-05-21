@@ -92,6 +92,7 @@ public class NamiServer {
   /** Stop serving requests and shutdown resources. */
   public void stop() throws InterruptedException, IOException {
     if (raftServer != null) {
+      System.out.println("Shutting down Raft Server");
       raftServer.close();
     }
     if (server != null) {

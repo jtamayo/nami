@@ -3,6 +3,8 @@ package edu.stanford.nami;
 import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+
+import com.google.protobuf.ByteString;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Status;
 
@@ -40,7 +42,7 @@ public class TransactionProcessor {
       ByteBuffer remoteValue = this.remoteStore.getAsOf(nKey, tid).asReadOnlyByteBuffer();
       Preconditions.checkState(
           remoteValue != null, "Remote fetched for a key that does not exist: " + nKey);
-      value = remoteValue.asReadOnlyBuffer().array();
+      value = ByteString.copyFrom(remoteValue).toByteArray();
       // Also add this to the cachingStore?
       this.cachingStore.put(nvKey, value);
     }
