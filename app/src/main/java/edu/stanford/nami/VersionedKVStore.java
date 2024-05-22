@@ -39,12 +39,16 @@ public class VersionedKVStore {
   }
 
   public void put(NVKey key, byte[] value) throws RocksDBException {
+    System.out.println("Storing NVKey " + key);
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
+  }
+
+  public void updateLatestTid(long newTid) {
     // TODO this is wrong: we'll update tid before all values have been updated
     // we need to move all puts to this store and apply them in a rocks transaction
-    tidSynchronizer.updateLatestTid(key.tid());
+    tidSynchronizer.updateLatestTid(newTid);
   }
 
   public boolean hasKeyInAllocation(NKey key) {
@@ -63,7 +67,7 @@ public class VersionedKVStore {
         this.hasKeyInAllocation(key), "tid is not in this store's allocation");
     // Preconditions.checkArgument(tid > 0, "tid must be non negative");
     // sanity check: make sure we're past the requested tid
-    tidSynchronizer.checkHasSeenTid(tid);
+    // tidSynchronizer.checkHasSeenTid(tid);
     try (RocksIterator it = db.newIterator()) {
       // seek to last possible transaction
       // TODO: use prefix search to prune search space
@@ -104,7 +108,9 @@ public class VersionedKVStore {
     private volatile long latestTid;
 
     public synchronized void updateLatestTid(long tid) {
+      System.out.println("Trying to update latestTid to " + tid);
       if (this.latestTid < tid) {
+        System.out.println("Updating latestTid to " + tid);
         this.latestTid = tid;
         this.notifyAll();
       }
@@ -119,6 +125,7 @@ public class VersionedKVStore {
     /** Waits until this synchronizer has reached or passed the provided tid. */
     public synchronized void waitUtilTid(long tid, long timeoutMillis) throws InterruptedException {
       while (latestTid < tid) {
+        System.out.println("Waiting to see tid " + tid + ", latestTid is " + latestTid);
         // TODO this is the wrong time to wait, I need to subtract the time I've waited already
         this.wait(timeoutMillis);
       }

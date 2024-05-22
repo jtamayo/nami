@@ -208,6 +208,7 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+      System.out.println("gRPC GetRequest " + request);
       NKey nKey = new NKey(request.getKey().getKey());
       byte[] value;
       try {
