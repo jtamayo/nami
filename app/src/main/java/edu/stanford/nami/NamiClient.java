@@ -113,7 +113,8 @@ public final class NamiClient implements AutoCloseable {
         client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 
     if (reply == null || !reply.isSuccess()) {
-      System.err.println("Failed to get response from " + client.getId() + " with reply = " + reply);
+      System.err.println(
+          "Failed to get response from " + client.getId() + " with reply = " + reply);
       return;
     }
 

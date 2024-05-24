@@ -15,7 +15,6 @@ import io.grpc.Server;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +23,6 @@ import org.apache.ratis.grpc.GrpcConfigKeys;
 import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
-import org.apache.ratis.server.protocol.TermIndex;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -33,6 +31,7 @@ public class NamiServer {
   private final int port;
   private final Server server;
   private final RaftServer raftServer;
+  private final KVStoreStateMachine stateMachine;
 
   public NamiServer(
       int port,
@@ -50,7 +49,7 @@ public class NamiServer {
     CachingStore cachingStore = new CachingStore();
     TransactionProcessor transactionProcessor =
         new TransactionProcessor(kvStore, remoteStore, cachingStore);
-    KVStoreStateMachine stateMachine = new KVStoreStateMachine(transactionProcessor);
+    stateMachine = new KVStoreStateMachine(transactionProcessor);
     server =
         serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
 
@@ -209,13 +208,17 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
+      System.out.println("gRPC GetRequest " + request);
       NKey nKey = new NKey(request.getKey().getKey());
       byte[] value;
       try {
         if (this.kvStore.hasKeyInAllocation(nKey)) {
-          value = this.kvStore.getAsOf(nKey, request.getKey().getTid());
+          var tid = request.getKey().getTid();
+          this.kvStore.waitUtilTid(tid, 5000);
+          value = this.kvStore.getAsOf(nKey, tid);
         } else {
-          throw new RuntimeException("Client asked for a key that is not in this store's allocation");
+          throw new RuntimeException(
+              "Client asked for a key that is not in this store's allocation");
         }
         Preconditions.checkNotNull(value);
         GetResponse response =
@@ -225,15 +228,18 @@ public class NamiServer {
       } catch (RocksDBException e) {
         System.out.println("Error getting:" + e.getMessage());
         responseObserver.onError(e);
+      } catch (InterruptedException e) {
+        System.out.println("Error getting:" + e.getMessage());
+        responseObserver.onError(e);
       }
     }
 
     @Override
     public void getRecentTid(
         GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
-      TermIndex lastAppliedTermIndex = this.stateMachine.getLastAppliedTermIndex();
-      var response =
-          GetRecentTidResponse.newBuilder().setTid(lastAppliedTermIndex.getIndex()).build();
+      var latestTid = this.kvStore.getLatestTid();
+      System.out.println("getRecentTid, responding " + latestTid);
+      var response = GetRecentTidResponse.newBuilder().setTid(latestTid).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }
