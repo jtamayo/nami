@@ -77,15 +77,11 @@ public class NamiServer {
 
   /** Start serving requests. */
   public void start() throws IOException {
-    log.atInfo().log("Server started, listening on port %s", port);
+    log.atInfo().log("Starting NamiServer gRPC listening on port %s", port);
     server.start();
-    System.out.println();
+    log.atInfo().log("Starting NamiServer raft with id %s and config %s", raftServer.getId(), raftServer.getDivision(PeersConfig.getRaftGroupId()));
     raftServer.start();
-    System.out.println(
-        "Raft Server started, with id "
-            + raftServer.getId()
-            + " and config "
-            + raftServer.getDivision(PeersConfig.getRaftGroupId()));
+    log.atInfo().log("NamiServer started!");
 
     // make sure we shut down properly
     Runtime.getRuntime().addShutdownHook(new ShutdownHook());
@@ -94,7 +90,7 @@ public class NamiServer {
   /** Stop serving requests and shutdown resources. */
   public void stop() throws InterruptedException, IOException {
     if (raftServer != null) {
-      System.out.println("Shutting down Raft Server");
+      log.atWarning().log("Shutting down Raft Server");
       raftServer.close();
     }
     if (server != null) {
@@ -110,7 +106,7 @@ public class NamiServer {
   }
 
   public static void main(String[] args) throws Exception {
-    System.out.println("Running in " + (new File(".").getAbsolutePath()));
+    System.out.println("NamiServer Running in " + (new File(".").getAbsolutePath()));
     System.setProperty(
         "flogger.backend_factory",
         "com.google.common.flogger.backend.slf4j.Slf4jBackendFactory#getInstance");
@@ -157,22 +153,22 @@ public class NamiServer {
             .resolve(config.getDataPath())
             .normalize()
             .resolve(selfPeerId);
-    System.out.println("All data will be stored in " + dataPath.toAbsolutePath());
+    log.atInfo().log("All data will be stored in %s", dataPath.toAbsolutePath());
     if (!dataPath.toFile().exists()) {
-      System.out.println("Creating data folder " + dataPath.toAbsolutePath());
+      log.atInfo().log("Creating data folder %s", dataPath.toAbsolutePath());
       dataPath.toFile().mkdirs();
     }
     var rocksDbPath = dataPath.resolve("rocksdb");
     var raftPath = dataPath.resolve("raft");
-    System.out.println("RocksDB data will be stored in " + rocksDbPath.toAbsolutePath());
-    System.out.println("Raft data will be stored in " + raftPath.toAbsolutePath());
+    log.atInfo().log("RocksDB data will be stored in %s", rocksDbPath.toAbsolutePath());
+    log.atInfo().log("Raft data will be stored in %s", raftPath.toAbsolutePath());
 
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
       options.setCreateIfMissing(true);
       try (var db = RocksDB.open(options, rocksDbPath.toString())) {
         // get peer and define storage dir
-        System.out.println("current Peer is " + peerConfig.getRaftAddress());
+        log.atInfo().log("Current peer is %s", peerConfig.getRaftAddress());
         var storageDir = raftPath.toFile();
         var server =
             new NamiServer(
@@ -214,7 +210,7 @@ public class NamiServer {
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
-      System.out.println("gRPC GetRequest " + request);
+      log.atFine().log("gRPC GetRequest %s", request);
       NKey nKey = new NKey(request.getKey().getKey());
       byte[] value;
       try {
@@ -223,19 +219,21 @@ public class NamiServer {
           this.kvStore.waitUtilTid(tid, 5000);
           value = this.kvStore.getAsOf(nKey, tid);
         } else {
+          log.atWarning().log("Client asked for a key that is not in this store's allocation, key %s", nKey);
           throw new RuntimeException(
               "Client asked for a key that is not in this store's allocation");
         }
         Preconditions.checkNotNull(value);
         GetResponse response =
             GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
+        log.atFine().log("Responding to key %s with value %s", nKey, response);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (RocksDBException e) {
-        System.out.println("Error getting:" + e.getMessage());
+        log.atSevere().log("Error processing request %s", request, e);
         responseObserver.onError(e);
       } catch (InterruptedException e) {
-        System.out.println("Error getting:" + e.getMessage());
+        log.atWarning().log("Interrupted while processing request %s", request, e);
         responseObserver.onError(e);
       }
     }
@@ -244,8 +242,8 @@ public class NamiServer {
     public void getRecentTid(
         GetRecentTidRequest request, StreamObserver<GetRecentTidResponse> responseObserver) {
       var latestTid = this.kvStore.getLatestTid();
-      System.out.println("getRecentTid, responding " + latestTid);
       var response = GetRecentTidResponse.newBuilder().setTid(latestTid).build();
+      log.atFine().log("gRPC GetRecentTid request, responding with %s", response);
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }
@@ -255,13 +253,13 @@ public class NamiServer {
     @Override
     public void run() {
       // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-      System.err.println("*** shutting down gRPC server since JVM is shutting down");
+      System.err.println("*** shutting down gRPC server since JVM is shutting down ***");
       try {
         NamiServer.this.stop();
       } catch (InterruptedException | IOException e) {
         e.printStackTrace(System.err);
       }
-      System.err.println("*** server shut down");
+      System.err.println("*** server shut down ***");
     }
   }
 }

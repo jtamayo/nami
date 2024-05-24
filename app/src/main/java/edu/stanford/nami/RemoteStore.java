@@ -12,11 +12,14 @@ import edu.stanford.nami.config.PeersConfig.PeerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import lombok.extern.flogger.Flogger;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+@Flogger
 public class RemoteStore implements AutoCloseable {
   private final Chunks.KeyToChunkMapper keyToChunkMapper = Chunks.NaiveKeyToChunkMapper.INSTANCE;
   private final String selfId;
@@ -44,6 +47,7 @@ public class RemoteStore implements AutoCloseable {
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
       peerChannelsBuilder.add(channel);
+      log.atFine().log("Opening channel to %s", target);
     }
     this.peerClients = peerClientsBuilder.build();
     this.peerChannels = peerChannelsBuilder.build();
@@ -54,6 +58,7 @@ public class RemoteStore implements AutoCloseable {
 
   public ByteString getAsOf(NKey key, long tid) {
     var peerGrpc = findPeerWithKey(key);
+    log.atFine().log("Getting key %s from peer %s", key, peerGrpc);
     ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
     GetRequest request = GetRequest.newBuilder().setKey(protoVKey).build();
     GetResponse response = peerGrpc.get(request);
@@ -78,11 +83,13 @@ public class RemoteStore implements AutoCloseable {
 
   public void shutdown() throws InterruptedException {
     for (var channel : this.peerChannels) {
+      log.atFine().log("Shutting down channel %s", channel);
       channel.shutdown();
     }
     boolean interrupted = false;
     for (var channel : this.peerChannels) {
       try {
+        log.atFine().log("Waiting on channel %s to terminate", channel);
         channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
       } catch (InterruptedException e) {
         e.printStackTrace();
@@ -92,6 +99,7 @@ public class RemoteStore implements AutoCloseable {
     if (interrupted) {
       throw new InterruptedException();
     }
+    log.atFine().log("Shut down RemoteStore");
   }
 
   private KVStoreGrpc.KVStoreBlockingStub findPeerWithKey(NKey key) {
