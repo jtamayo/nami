@@ -49,6 +49,8 @@ message TransactionRequest {
 
 message TransactionResponse {
   TransactionStatus status = 1;
+  // TID of the transaction that committed
+  int64 tid = 2;
 }
 
 enum TransactionStatus {

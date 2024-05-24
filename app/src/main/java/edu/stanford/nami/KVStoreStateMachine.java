@@ -107,14 +107,14 @@ public class KVStoreStateMachine extends BaseStateMachine {
     long currentTid = logEntryIndex + 1;
     TransactionStatus status =
         this.transactionProcessor.processTransaction(request, currentTid, isLeader);
-    ByteString byteString = constructTransactionResponse(status);
+    ByteString byteString = constructTransactionResponse(status, currentTid);
     return Message.valueOf(byteString);
   }
 
-  private ByteString constructTransactionResponse(TransactionStatus status) {
+  private ByteString constructTransactionResponse(TransactionStatus status, long tid) {
     return convertToRatisByteString(
         KVStoreRaftResponse.newBuilder()
-            .setTransaction(TransactionResponse.newBuilder().setStatus(status))
+            .setTransaction(TransactionResponse.newBuilder().setStatus(status).setTid(tid))
             .build()
             .toByteString());
   }

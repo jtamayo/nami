@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 public final class ClientTransaction {
   /** tid as of which all reads are done */
@@ -46,14 +47,15 @@ public final class ClientTransaction {
   }
 
   // Attempt to commit this transaction to the server
-  public TransactionStatus commit() {
-    var response = namiClient.commit(snapshotTid, readValues, writtenValues);
-    return response.getStatus();
+  public TransactionResponse commit() {
+    return namiClient.commit(snapshotTid, readValues, writtenValues);
   }
 
   // start a new transaction against the provided Nami cluster
-  public static ClientTransaction begin(NamiClient namiClient) {
+  public static ClientTransaction begin(NamiClient namiClient, Optional<Long> snapshotTid) {
+    var clientSnapshotId = snapshotTid.orElse(0L);
     var recentTid = namiClient.getRecentTid();
-    return new ClientTransaction(namiClient, recentTid);
+    var snapshotId = recentTid > clientSnapshotId ? recentTid : clientSnapshotId;
+    return new ClientTransaction(namiClient, snapshotId);
   }
 }
