@@ -12,12 +12,11 @@ import edu.stanford.nami.config.PeersConfig.PeerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
-import lombok.extern.flogger.Flogger;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.flogger.Flogger;
 
 @Flogger
 public class RemoteStore implements AutoCloseable {

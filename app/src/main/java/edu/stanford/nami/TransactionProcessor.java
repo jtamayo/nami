@@ -3,7 +3,6 @@ package edu.stanford.nami;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import java.util.Objects;
-
 import lombok.extern.flogger.Flogger;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Status;
@@ -75,8 +74,7 @@ public class TransactionProcessor {
 
   public TransactionStatus processTransaction(
       TransactionRequest request, long assignedTid, boolean isLeader) {
-    log.atFine().log(
-        "Processing transaction with assignedTid " + assignedTid + ", tx: " + request);
+    log.atFine().log("Processing transaction with assignedTid " + assignedTid + ", tx: " + request);
     TransactionStatus transactionStatus;
     // Change this if we ever decide to cache non-local transactions on followers
     if (isLeader || hasLocalWrites(request)) {

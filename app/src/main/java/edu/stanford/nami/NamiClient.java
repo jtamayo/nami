@@ -12,11 +12,13 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
+import lombok.extern.flogger.Flogger;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientReply;
 
+@Flogger
 public final class NamiClient implements AutoCloseable {
   /**
    * Give each client a unique identifier, useful for debugging and telling the RemoteStore this
@@ -29,7 +31,7 @@ public final class NamiClient implements AutoCloseable {
 
   @Override
   public void close() throws Exception {
-    System.out.println("Closing NamiClient");
+    log.atInfo().log("Closing NamiClient");
     AutoCloseables.closeSafely(raftClient, remoteStore);
   }
 
@@ -50,7 +52,7 @@ public final class NamiClient implements AutoCloseable {
     var request = GetRecentTidRequest.newBuilder().build();
     var response = remoteStore.getArbitraryPeer().getRecentTid(request);
     var recentTid = response.getTid();
-    System.out.println("Recent TID: " + recentTid);
+    log.atFine().log("Recent TID: %s", recentTid);
     return response.getTid();
   }
 
@@ -90,16 +92,18 @@ public final class NamiClient implements AutoCloseable {
       RaftClientReply reply = raftClient.io().send(raftMessage);
 
       if (reply == null || !reply.isSuccess()) {
-        var msg = "Failed request to raft with id " + raftClient.getId() + " with reply = " + reply;
-        System.err.println(msg);
-        throw new RuntimeException();
+        log.atSevere().log(
+            "Failed request to raft with id %s and reply %s", raftClient.getId(), reply);
+        throw new RuntimeException("Failed request to raft");
       }
 
       final ByteBuffer raftValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
       return KVStoreRaftResponse.parseFrom(raftValue);
     } catch (InvalidProtocolBufferException e) {
+      log.atSevere().log("Error parsing raft response", e);
       throw new RuntimeException("Error parsing raft response", e);
     } catch (IOException e) {
+      log.atSevere().log("Error communicating to raft client", e);
       throw new RuntimeException("Error communicating to raft client", e);
     }
   }
@@ -113,14 +117,14 @@ public final class NamiClient implements AutoCloseable {
         client.io().send(Message.valueOf(convertToRatisByteString(request.toByteString())));
 
     if (reply == null || !reply.isSuccess()) {
-      System.err.println(
-          "Failed to get response from " + client.getId() + " with reply = " + reply);
-      return;
+      log.atSevere().log(
+          "Failed to put request %s to server %s with reply %s", putRequest, client.getId(), reply);
+      throw new RuntimeException("Faled to put request");
     }
 
     final ByteBuffer putValue = reply.getMessage().getContent().asReadOnlyByteBuffer();
     PutResponse response = PutResponse.parseFrom(putValue);
-    System.out.println("Got put response: " + response.toString());
+    log.atFine().log("Got put response: %s", response.toString());
   }
 
   public void put(int i, long tid, String key, String value) {

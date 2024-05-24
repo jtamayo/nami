@@ -79,7 +79,9 @@ public class NamiServer {
   public void start() throws IOException {
     log.atInfo().log("Starting NamiServer gRPC listening on port %s", port);
     server.start();
-    log.atInfo().log("Starting NamiServer raft with id %s and config %s", raftServer.getId(), raftServer.getDivision(PeersConfig.getRaftGroupId()));
+    log.atInfo().log(
+        "Starting NamiServer raft with id %s and config %s",
+        raftServer.getId(), raftServer.getDivision(PeersConfig.getRaftGroupId()));
     raftServer.start();
     log.atInfo().log("NamiServer started!");
 
@@ -219,7 +221,8 @@ public class NamiServer {
           this.kvStore.waitUtilTid(tid, 5000);
           value = this.kvStore.getAsOf(nKey, tid);
         } else {
-          log.atWarning().log("Client asked for a key that is not in this store's allocation, key %s", nKey);
+          log.atWarning().log(
+              "Client asked for a key that is not in this store's allocation, key %s", nKey);
           throw new RuntimeException(
               "Client asked for a key that is not in this store's allocation");
         }

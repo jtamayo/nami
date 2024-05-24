@@ -7,7 +7,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
-
 import lombok.extern.flogger.Flogger;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
