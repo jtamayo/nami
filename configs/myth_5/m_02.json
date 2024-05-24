@@ -1,0 +1,7 @@
+{
+    "selfPeerId": "p_02",
+    "chunkConfigPath": "./chunks.json",
+    "peerConfigsPath": "./peers.json",
+    "dataPath": "../../kv_data",
+    "peerIndex": 0
+}
