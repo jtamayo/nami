@@ -1,0 +1,15 @@
+<configuration>
+  # Console appender
+  <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{5} -%kvp- %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  # Override log level for specified package
+  <logger name="edu.stanford.nami" level="INFO"/>
+
+  <root level="WARN">
+    <appender-ref ref="stdout" />
+  </root>
+</configuration>

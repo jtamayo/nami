@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.flogger.Flogger;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
 import org.apache.ratis.protocol.RaftPeerId;
@@ -27,6 +28,7 @@ import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 
+@Flogger
 public class NamiServer {
   private final int port;
   private final Server server;
@@ -75,8 +77,9 @@ public class NamiServer {
 
   /** Start serving requests. */
   public void start() throws IOException {
+    log.atInfo().log("Server started, listening on port %s", port);
     server.start();
-    System.out.println("Server started, listening on " + port);
+    System.out.println();
     raftServer.start();
     System.out.println(
         "Raft Server started, with id "
@@ -108,6 +111,9 @@ public class NamiServer {
 
   public static void main(String[] args) throws Exception {
     System.out.println("Running in " + (new File(".").getAbsolutePath()));
+    System.setProperty(
+        "flogger.backend_factory",
+        "com.google.common.flogger.backend.slf4j.Slf4jBackendFactory#getInstance");
 
     if (args.length != 1) {
       System.err.println("Invalid usage. Usage: k-v-store-server <config_file>");
