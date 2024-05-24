@@ -1,0 +1,39 @@
+{
+    "peers": [
+        {
+            "peerId": "m_00",
+            "host": "127.0.0.1",
+            "raftPort": 12100,
+            "kvPort": 14100,
+            "priority": 1
+        },
+        {
+            "peerId": "m_01",
+            "host": "127.0.0.1",
+            "raftPort": 12101,
+            "kvPort": 14101,
+            "priority": 0
+        },
+        {
+            "peerId": "m_02",
+            "host": "127.0.0.1",
+            "raftPort": 12102,
+            "kvPort": 14102,
+            "priority": 0
+        },
+        {
+            "peerId": "m_03",
+            "host": "127.0.0.1",
+            "raftPort": 12103,
+            "kvPort": 14103,
+            "priority": 0
+        },
+        {
+            "peerId": "m_04",
+            "host": "127.0.0.1",
+            "raftPort": 12104,
+            "kvPort": 14104,
+            "priority": 0
+        }
+    ]
+}
