@@ -41,7 +41,7 @@ public class VersionedKVStore {
   }
 
   public void put(NVKey key, byte[] value) throws RocksDBException {
-    log.atInfo().log("Storing NVKey " + key);
+    log.atFine().log("Storing NVKey " + key);
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
@@ -112,7 +112,7 @@ public class VersionedKVStore {
     public synchronized void updateLatestTid(long tid) {
       log.atFine().log("Trying to update latestTid to " + tid);
       if (this.latestTid < tid) {
-        log.atInfo().log("Updating latestTid to " + tid);
+        log.atFine().log("Updating latestTid to " + tid);
         this.latestTid = tid;
         this.notifyAll();
       }
