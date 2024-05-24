@@ -1,6 +1,7 @@
 package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
+import lombok.extern.flogger.Flogger;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
@@ -20,6 +21,7 @@ import org.rocksdb.RocksIterator;
  *
  * <p>
  */
+@Flogger
 public class VersionedKVStore {
   // TODO: Does this need to be aware of partitions at all?
   // TODO: do we want to check that the tid that's writing is after the most recent tid?
@@ -39,7 +41,7 @@ public class VersionedKVStore {
   }
 
   public void put(NVKey key, byte[] value) throws RocksDBException {
-    System.out.println("Storing NVKey " + key);
+    log.atInfo().log("Storing NVKey " + key);
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
@@ -108,9 +110,9 @@ public class VersionedKVStore {
     private volatile long latestTid;
 
     public synchronized void updateLatestTid(long tid) {
-      System.out.println("Trying to update latestTid to " + tid);
+      log.atFine().log("Trying to update latestTid to " + tid);
       if (this.latestTid < tid) {
-        System.out.println("Updating latestTid to " + tid);
+        log.atInfo().log("Updating latestTid to " + tid);
         this.latestTid = tid;
         this.notifyAll();
       }
@@ -125,7 +127,7 @@ public class VersionedKVStore {
     /** Waits until this synchronizer has reached or passed the provided tid. */
     public synchronized void waitUtilTid(long tid, long timeoutMillis) throws InterruptedException {
       while (latestTid < tid) {
-        System.out.println("Waiting to see tid " + tid + ", latestTid is " + latestTid);
+        log.atFine().log("Waiting to see tid " + tid + ", latestTid is " + latestTid);
         // TODO this is the wrong time to wait, I need to subtract the time I've waited already
         this.wait(timeoutMillis);
       }

@@ -3,9 +3,12 @@ package edu.stanford.nami;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import java.util.Objects;
+
+import lombok.extern.flogger.Flogger;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Status;
 
+@Flogger
 public class TransactionProcessor {
   private final VersionedKVStore kvStore;
   private final RemoteStore remoteStore;
@@ -31,7 +34,7 @@ public class TransactionProcessor {
 
   private boolean isInTransactionGetValueValid(
       long previousTransactionTid, InTransactionGet inTransactionGet) {
-    System.out.println(
+    log.atFine().log(
         "Validating inTxGet for previousTransactionTid "
             + previousTransactionTid
             + " and "
@@ -72,7 +75,7 @@ public class TransactionProcessor {
 
   public TransactionStatus processTransaction(
       TransactionRequest request, long assignedTid, boolean isLeader) {
-    System.out.println(
+    log.atFine().log(
         "Processing transaction with assignedTid " + assignedTid + ", tx: " + request);
     TransactionStatus transactionStatus;
     // Change this if we ever decide to cache non-local transactions on followers
@@ -97,7 +100,7 @@ public class TransactionProcessor {
       transactionStatus = TransactionStatus.UNKNOWN;
     }
 
-    System.out.println("Determined tid " + assignedTid + " has status " + transactionStatus);
+    log.atFine().log("Determined tid " + assignedTid + " has status " + transactionStatus);
 
     // process transactions for cache
     switch (transactionStatus) {
@@ -147,7 +150,7 @@ public class TransactionProcessor {
                 || e.getStatus().getCode() == Status.Code.Expired
                 || e.getStatus().getCode() == Status.Code.TimedOut)) {
           numRetries++;
-          System.out.println("Retrying operation: " + numRetries + " time");
+          log.atInfo().log("Retrying operation: " + numRetries + " time");
           e.printStackTrace();
           continue;
         }

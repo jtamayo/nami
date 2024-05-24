@@ -7,6 +7,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+
+import lombok.extern.flogger.Flogger;
 import org.apache.ratis.proto.RaftProtos;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientRequest;
@@ -20,6 +22,7 @@ import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.JavaUtils;
 
+@Flogger
 public class KVStoreStateMachine extends BaseStateMachine {
   private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
   private final TransactionProcessor transactionProcessor;
@@ -59,17 +62,17 @@ public class KVStoreStateMachine extends BaseStateMachine {
   public TransactionContext startTransaction(RaftClientRequest request)
       throws InvalidProtocolBufferException {
     try {
-      System.out.println("Starting transaction");
+      log.atFine().log("Starting transaction");
       final ByteString content = request.getMessage().getContent();
       final com.google.protobuf.ByteString googleContent = convertToGoogleByteString(content);
       final KVStoreRaftRequest proto = KVStoreRaftRequest.parseFrom(googleContent);
       final TransactionContext.Builder b =
           TransactionContext.newBuilder().setStateMachine(this).setClientRequest(request);
       b.setLogData(content).setStateMachineContext(proto);
-      System.out.println("Starting ending transaction");
+      log.atFine().log("Starting ending transaction");
       return b.build();
     } catch (Exception e) {
-      System.out.println("Error starting transaction" + e.getMessage());
+      log.atSevere().log("Error starting transaction" + e.getMessage());
       e.printStackTrace();
       throw e;
     }
@@ -125,7 +128,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     // if leader, log the transaction and the term-index
     boolean isLeader = trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER;
     if (isLeader) {
-      System.out.println(
+      log.atFine().log(
           TermIndex.valueOf(entry) + ": Applying transaction " + request.getRequestCase());
     }
 
@@ -135,7 +138,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
         message = processTransaction(logEntryIndex, request.getTransaction(), isLeader);
         break;
       default:
-        System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
+        log.atSevere().log(getId() + ": Unexpected request case " + request.getRequestCase());
         throw new IllegalArgumentException(
             getId() + ": Unexpected request case " + request.getRequestCase());
     }
@@ -153,10 +156,10 @@ public class KVStoreStateMachine extends BaseStateMachine {
    */
   @Override
   public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
-    System.out.println("Applying transaction");
+    log.atFine().log("Applying transaction");
     try {
       var message = applyTransactionImpl(trx);
-      System.out.println("Done applying transaction");
+      log.atFine().log("Done applying transaction");
       return CompletableFuture.completedFuture(message);
     } catch (Exception e) {
       e.printStackTrace();
