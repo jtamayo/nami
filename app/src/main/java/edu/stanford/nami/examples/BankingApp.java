@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.flogger.Flogger;
 
+@Flogger
 @RequiredArgsConstructor
 public final class BankingApp {
   public static final int THREADS = 100;
@@ -34,31 +36,31 @@ public final class BankingApp {
   private final NamiClient client;
 
   public static void main(String[] args) throws InterruptedException {
-    System.out.println("Starting BankingApp benchmark");
-    System.out.println("Running in " + new File(".").getAbsolutePath());
+    log.atInfo().log("Starting BankingApp benchmark");
+    log.atInfo().log("Running in " + new File(".").getAbsolutePath());
 
     if (args.length != 1) {
-      System.err.println("Invalid usage. Usage: banking-app <config_file>");
+      log.atSevere().log("Invalid usage. Usage: banking-app <config_file>");
       System.exit(-1);
     }
     var configFileName = args[0];
     var configFile = new File(configFileName);
 
     if (!configFile.exists()) {
-      System.err.println("File " + configFile.getAbsolutePath() + " does not exist");
+      log.atSevere().log("File " + configFile.getAbsolutePath() + " does not exist");
       System.exit(-2);
     } else {
-      System.out.println("Found config file at " + configFile.getAbsolutePath());
+      log.atInfo().log("Found config file at " + configFile.getAbsolutePath());
     }
 
     var config = loadClientConfig(configFile);
-    System.out.println("Loaded client config " + config);
+    log.atInfo().log("Loaded client config " + config);
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
 
     try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
       new BankingApp(client).run();
-      System.out.println("Done running banking app");
+      log.atInfo().log("Done running banking app");
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -92,11 +94,11 @@ public final class BankingApp {
     for (int i = 0; i < THREADS; i++) {
       var worker = new Worker(i, accountKeys);
       workers.add(worker);
-      System.out.println("Creating worker " + i);
+      log.atInfo().log("Creating worker " + i);
       worker.start();
     }
     for (var worker : workers) {
-      System.out.println("Waiting on worker " + worker.workerIndex);
+      log.atInfo().log("Waiting on worker " + worker.workerIndex);
       worker.join();
     }
 
@@ -113,7 +115,7 @@ public final class BankingApp {
     for (int i = 0; i < ACCOUNTS; i++) {
       var accountKey = UUID.randomUUID().toString();
       // zero out all balances
-      System.out.println("Creating account " + accountKey);
+      log.atInfo().log("Creating account " + accountKey);
       writeBalance(tx, accountKey, 0);
       accountKeys.add(accountKey);
     }
@@ -136,8 +138,8 @@ public final class BankingApp {
         negativeBalance += balance;
       }
     }
-    System.out.println("Positive balance: " + positiveBalance);
-    System.out.println("Negative balance: " + negativeBalance);
+    log.atInfo().log("Positive balance: " + positiveBalance);
+    log.atInfo().log("Negative balance: " + negativeBalance);
     Preconditions.checkState(
         positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
   }
@@ -150,12 +152,12 @@ public final class BankingApp {
 
     @Override
     public void run() {
-      System.out.println("Starting worker " + workerIndex);
+      log.atInfo().log("Starting worker " + workerIndex);
       for (int i = 0; i < TX_PER_THREAD; i++) {
-        System.out.println("Worker " + workerIndex + " moving money");
+        log.atInfo().log("Worker " + workerIndex + " moving money");
         moveMoney();
       }
-      System.out.println("Worker " + workerIndex + " completed");
+      log.atInfo().log("Worker " + workerIndex + " completed");
     }
 
     private void moveMoney() {
@@ -170,7 +172,7 @@ public final class BankingApp {
         if (outcome == TransactionStatus.COMMITTED) {
           break;
         }
-        System.out.println("Worker " + workerIndex + " encountered a conflict, retrying...");
+        log.atInfo().log("Worker " + workerIndex + " encountered a conflict, retrying...");
         numRetries++;
       }
     }
