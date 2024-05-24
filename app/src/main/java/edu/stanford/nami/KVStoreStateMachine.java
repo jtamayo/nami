@@ -97,7 +97,12 @@ public class KVStoreStateMachine extends BaseStateMachine {
   }
 
   private Message processTransaction(
-      long currentTid, TransactionRequest request, boolean isLeader) {
+      long logEntryIndex, TransactionRequest request, boolean isLeader) {
+    // HACK we want tids to start at 1, so we're always certain they've been
+    // included properly in proto messages. Unfortunately, log entry indices
+    // start at 0.
+    // So work around it by adding one to derive the tid :/
+    long currentTid = logEntryIndex + 1;
     TransactionStatus status =
         this.transactionProcessor.processTransaction(request, currentTid, isLeader);
     ByteString byteString = constructTransactionResponse(status);
@@ -113,22 +118,21 @@ public class KVStoreStateMachine extends BaseStateMachine {
   }
 
   private Message applyTransactionImpl(TransactionContext trx) {
-    final RaftProtos.LogEntryProto entry = trx.getLogEntry();
-    final long index = entry.getIndex();
-
-    final TermIndex termIndex = TermIndex.valueOf(entry);
-    final KVStoreRaftRequest request = getProto(trx, entry);
+    RaftProtos.LogEntryProto entry = trx.getLogEntry();
+    long logEntryIndex = entry.getIndex();
+    KVStoreRaftRequest request = getProto(trx, entry);
 
     // if leader, log the transaction and the term-index
     boolean isLeader = trx.getServerRole() == RaftProtos.RaftPeerRole.LEADER;
     if (isLeader) {
-      System.out.println(termIndex + ": Applying transaction " + request.getRequestCase());
+      System.out.println(
+          TermIndex.valueOf(entry) + ": Applying transaction " + request.getRequestCase());
     }
 
     Message message;
     switch (request.getRequestCase()) {
       case TRANSACTION:
-        message = processTransaction(index, request.getTransaction(), isLeader);
+        message = processTransaction(logEntryIndex, request.getTransaction(), isLeader);
         break;
       default:
         System.err.println(getId() + ": Unexpected request case " + request.getRequestCase());
@@ -136,8 +140,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
             getId() + ": Unexpected request case " + request.getRequestCase());
     }
 
-    // TODO: Need to move this to after processing the transaction
-    updateLastAppliedTermIndex(entry.getTerm(), index);
+    updateLastAppliedTermIndex(entry.getTerm(), logEntryIndex);
 
     return message;
   }

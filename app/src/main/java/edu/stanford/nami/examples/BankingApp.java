@@ -27,7 +27,7 @@ public final class BankingApp {
   public static final int THREADS = 100;
   public static final int ACCOUNTS = 1000;
   public static final int TX_PER_THREAD = 10;
-  public static final int MOVES_PER_TX = 10;
+  public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
 

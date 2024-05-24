@@ -65,9 +65,9 @@ public class VersionedKVStore {
   public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key), "tid is not in this store's allocation");
-    // Preconditions.checkArgument(tid > 0, "tid must be non negative");
+    Preconditions.checkArgument(tid > 0, "tid must be non negative");
     // sanity check: make sure we're past the requested tid
-    // tidSynchronizer.checkHasSeenTid(tid);
+    tidSynchronizer.checkHasSeenTid(tid);
     try (RocksIterator it = db.newIterator()) {
       // seek to last possible transaction
       // TODO: use prefix search to prune search space
