@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
+import edu.stanford.nami.TransactionResponse;
 import edu.stanford.nami.TransactionStatus;
 import edu.stanford.nami.client.ClientTransaction;
 import edu.stanford.nami.config.ChunksConfig;
@@ -16,10 +17,9 @@ import edu.stanford.nami.config.PeersConfig;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
 
@@ -34,6 +34,7 @@ public final class BankingApp {
   public static final int MAX_RETRIES = 20;
 
   private final NamiClient client;
+  private final AtomicLong latestTid = new AtomicLong(0L);
 
   public static void main(String[] args) throws InterruptedException {
     log.atInfo().log("Starting BankingApp benchmark");
@@ -111,7 +112,7 @@ public final class BankingApp {
   /** Create ACCOUNT accounts with UUIDs as keys, and a balance of zero. */
   private List<String> createAccounts() {
     var accountKeys = new ArrayList<String>();
-    var tx = ClientTransaction.begin(client);
+    var tx = ClientTransaction.begin(client, Optional.empty());
     for (int i = 0; i < ACCOUNTS; i++) {
       var accountKey = UUID.randomUUID().toString();
       // zero out all balances
@@ -119,7 +120,8 @@ public final class BankingApp {
       writeBalance(tx, accountKey, 0);
       accountKeys.add(accountKey);
     }
-    tx.commit();
+    TransactionResponse response = tx.commit();
+    updateLatestTid(response.getTid());
 
     return accountKeys;
   }
@@ -127,7 +129,7 @@ public final class BankingApp {
   /** Validate that, in total, all accounts still have zero balance. */
   private void validateZeroNetBalance(List<String> accountKeys) {
     // begin tx so we know all values are consistent
-    var tx = ClientTransaction.begin(client);
+    var tx = ClientTransaction.begin(client, Optional.of(this.latestTid.get()));
     var positiveBalance = 0L;
     var negativeBalance = 0L;
     for (String accountKey : accountKeys) {
@@ -142,6 +144,16 @@ public final class BankingApp {
     log.atInfo().log("Negative balance: " + negativeBalance);
     Preconditions.checkState(
         positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
+  }
+
+  private void updateLatestTid(long newTid) {
+    long oldTid = latestTid.get();
+    while (newTid > oldTid) {
+      if (latestTid.compareAndSet(oldTid, newTid)) {
+        break;
+      }
+      oldTid = latestTid.get();
+    }
   }
 
   @RequiredArgsConstructor
@@ -163,13 +175,15 @@ public final class BankingApp {
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
-        var tx = ClientTransaction.begin(client);
+        var tx = ClientTransaction.begin(client, Optional.empty());
         moveMoneyInTransaction(tx);
-        TransactionStatus outcome = tx.commit();
-        if (outcome == TransactionStatus.UNKNOWN) {
+        TransactionResponse outcome = tx.commit();
+        TransactionStatus status = outcome.getStatus();
+        if (status == TransactionStatus.UNKNOWN) {
           throw new RuntimeException("GOT UNKNOWN TRANSACTION!");
         }
-        if (outcome == TransactionStatus.COMMITTED) {
+        updateLatestTid(outcome.getTid());
+        if (status == TransactionStatus.COMMITTED) {
           break;
         }
         log.atInfo().log("Worker " + workerIndex + " encountered a conflict, retrying...");
