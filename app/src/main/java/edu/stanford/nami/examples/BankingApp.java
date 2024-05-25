@@ -121,10 +121,7 @@ public final class BankingApp {
       accountKeys.add(accountKey);
     }
     TransactionResponse response = tx.commit();
-    if (response.getTid() > latestTid.get()) {
-      // No contention issues here
-      latestTid.set(response.getTid());
-    }
+    updateLatestTid(response.getTid());
 
     return accountKeys;
   }
@@ -149,6 +146,16 @@ public final class BankingApp {
         positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
   }
 
+  private void updateLatestTid(long newTid) {
+    long oldTid = latestTid.get();
+    while (newTid > oldTid) {
+      if (latestTid.compareAndSet(oldTid, newTid)) {
+        break;
+      }
+      oldTid = latestTid.get();
+    }
+  }
+
   @RequiredArgsConstructor
   public class Worker extends Thread {
     private final int workerIndex;
@@ -165,16 +172,6 @@ public final class BankingApp {
       log.atInfo().log("Worker " + workerIndex + " completed");
     }
 
-    private void updateLatestTid(long newTid) {
-      long oldTid = latestTid.get();
-      while (newTid > oldTid) {
-        if (latestTid.compareAndSet(oldTid, newTid)) {
-          break;
-        }
-        oldTid = latestTid.get();
-      }
-    }
-
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
@@ -185,7 +182,7 @@ public final class BankingApp {
         if (status == TransactionStatus.UNKNOWN) {
           throw new RuntimeException("GOT UNKNOWN TRANSACTION!");
         }
-        this.updateLatestTid(outcome.getTid());
+        updateLatestTid(outcome.getTid());
         if (status == TransactionStatus.COMMITTED) {
           break;
         }
