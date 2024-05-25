@@ -165,6 +165,16 @@ public final class BankingApp {
       log.atInfo().log("Worker " + workerIndex + " completed");
     }
 
+    private void updateLatestTid(long newTid) {
+      long oldTid = latestTid.get();
+      while (newTid > oldTid) {
+        if (latestTid.compareAndSet(oldTid, newTid)) {
+          break;
+        }
+        oldTid = latestTid.get();
+      }
+    }
+
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
@@ -175,14 +185,7 @@ public final class BankingApp {
         if (status == TransactionStatus.UNKNOWN) {
           throw new RuntimeException("GOT UNKNOWN TRANSACTION!");
         }
-        long oldTid = latestTid.get();
-        long newTid = outcome.getTid();
-        while (newTid > oldTid) {
-          if (latestTid.compareAndSet(oldTid, newTid)) {
-            break;
-          }
-          oldTid = latestTid.get();
-        }
+        this.updateLatestTid(outcome.getTid());
         if (status == TransactionStatus.COMMITTED) {
           break;
         }
