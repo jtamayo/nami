@@ -175,7 +175,7 @@ public final class BankingApp {
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
-        var tx = ClientTransaction.begin(client, Optional.of(latestTid.get()));
+        var tx = ClientTransaction.begin(client, Optional.empty());
         moveMoneyInTransaction(tx);
         TransactionResponse outcome = tx.commit();
         TransactionStatus status = outcome.getStatus();
