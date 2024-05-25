@@ -2,10 +2,13 @@ package edu.stanford.nami.client;
 
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
+import lombok.extern.flogger.Flogger;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+@Flogger
 public final class ClientTransaction {
   /** tid as of which all reads are done */
   private final long snapshotTid;
@@ -56,6 +59,13 @@ public final class ClientTransaction {
     var clientSnapshotId = snapshotTid.orElse(0L);
     var recentTid = namiClient.getRecentTid();
     var snapshotId = recentTid > clientSnapshotId ? recentTid : clientSnapshotId;
+    if (recentTid < clientSnapshotId) {
+      log.atInfo().log(
+          "Got a recent id that is smaller than the one provided by client: "
+              + recentTid
+              + " vs. "
+              + clientSnapshotId);
+    }
     return new ClientTransaction(namiClient, snapshotId);
   }
 }
