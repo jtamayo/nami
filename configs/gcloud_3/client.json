@@ -1,0 +1,4 @@
+{
+    "chunkConfigPath": "./chunks.json",
+    "peerConfigsPath": "./peers.json"
+}
