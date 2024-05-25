@@ -56,9 +56,9 @@ public final class ClientTransaction {
 
   // start a new transaction against the provided Nami cluster
   public static ClientTransaction begin(NamiClient namiClient, Optional<Long> snapshotTid) {
-    var clientSnapshotId = snapshotTid.orElse(0L);
+    long clientSnapshotId = snapshotTid.orElse(0L);
     var recentTid = namiClient.getRecentTid();
-    var snapshotId = recentTid > clientSnapshotId ? recentTid : clientSnapshotId;
+    var snapshotId = Math.max(recentTid, clientSnapshotId);
     if (recentTid < clientSnapshotId) {
       log.atInfo().log(
           "Got a recent id that is smaller than the one provided by client: "
