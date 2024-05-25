@@ -9,6 +9,7 @@ import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionResponse;
 import edu.stanford.nami.TransactionStatus;
+import edu.stanford.nami.client.ClientMetrics;
 import edu.stanford.nami.client.ClientTransaction;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
@@ -26,8 +27,8 @@ import lombok.extern.flogger.Flogger;
 @Flogger
 @RequiredArgsConstructor
 public final class BankingApp {
-  public static final int THREADS = 100;
-  public static final int ACCOUNTS = 1000;
+  public static final int THREADS = 1;
+  public static final int ACCOUNTS = 10;
   public static final int TX_PER_THREAD = 10;
   public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;
@@ -58,9 +59,13 @@ public final class BankingApp {
     log.atInfo().log("Loaded client config " + config);
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
+    log.atInfo().log("Setting up metrics");
+    ClientMetrics.startReporting(config.getMetricsPath());
 
     try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
       new BankingApp(client).run();
+      log.atInfo().log("Flushing metrics");
+      ClientMetrics.awaitOneLastReport();
       log.atInfo().log("Done running banking app");
     } catch (Exception e) {
       e.printStackTrace();

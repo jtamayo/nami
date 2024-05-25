@@ -2,8 +2,11 @@ package edu.stanford.nami;
 
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
+import com.codahale.metrics.Timer;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import edu.stanford.nami.client.ClientMetrics;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.utils.AutoCloseables;
@@ -12,6 +15,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
+
+import lombok.experimental.UtilityClass;
 import lombok.extern.flogger.Flogger;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.conf.RaftProperties;
@@ -20,6 +25,13 @@ import org.apache.ratis.protocol.RaftClientReply;
 
 @Flogger
 public final class NamiClient implements AutoCloseable {
+  @UtilityClass
+  private static final class Timers {
+    Timer remoteGet = ClientMetrics.registry.timer("nami-client.remoteGet");
+    Timer getRecentTid = ClientMetrics.registry.timer("nami-client.getRecentTid");
+    Timer commit = ClientMetrics.registry.timer("nami-client.commit");
+  }
+
   /**
    * Give each client a unique identifier, useful for debugging and telling the RemoteStore this
    * process has no data.
@@ -49,40 +61,55 @@ public final class NamiClient implements AutoCloseable {
   }
 
   public long getRecentTid() {
-    var request = GetRecentTidRequest.newBuilder().build();
-    var response = remoteStore.getArbitraryPeer().getRecentTid(request);
-    var recentTid = response.getTid();
-    log.atFine().log("Recent TID: %s", recentTid);
-    return response.getTid();
+    var timer = Timers.getRecentTid.time();
+    try {
+      var request = GetRecentTidRequest.newBuilder().build();
+      var response = remoteStore.getArbitraryPeer().getRecentTid(request);
+      var recentTid = response.getTid();
+      log.atFine().log("Recent TID: %s", recentTid);
+      return response.getTid();
+    } finally {
+      timer.stop();
+    }
   }
 
   public ByteString get(long tid, String key) {
-    return remoteStore.getAsOf(new NKey(key), tid);
+    var timer = Timers.remoteGet.time();
+    try {
+      return remoteStore.getAsOf(new NKey(key), tid);
+    } finally {
+      timer.stop();
+    }
   }
 
   public TransactionResponse commit(
       long snapshotTid, Map<NKey, ByteString> readValues, Map<NKey, ByteString> writtenValues) {
-    var builder = TransactionRequest.newBuilder();
-    builder.setSnapshotTid(snapshotTid);
-    for (var readValue : readValues.entrySet()) {
-      var inTransactionGet =
-          InTransactionGet.newBuilder()
-              .setKey(readValue.getKey().key())
-              .setValue(readValue.getValue())
-              .build();
-      builder.addGets(inTransactionGet);
+    var timer = Timers.commit.time();
+    try {
+      var builder = TransactionRequest.newBuilder();
+      builder.setSnapshotTid(snapshotTid);
+      for (var readValue : readValues.entrySet()) {
+        var inTransactionGet =
+            InTransactionGet.newBuilder()
+                .setKey(readValue.getKey().key())
+                .setValue(readValue.getValue())
+                .build();
+        builder.addGets(inTransactionGet);
+      }
+      for (var writeValue : writtenValues.entrySet()) {
+        var inTransactionPut =
+            InTransactionPut.newBuilder()
+                .setKey(writeValue.getKey().key())
+                .setValue(writeValue.getValue())
+                .build();
+        builder.addPuts(inTransactionPut);
+      }
+  
+      var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
+      return submitRaftRequest(raftRequest).getTransaction();  
+    } finally {
+      timer.stop();
     }
-    for (var writeValue : writtenValues.entrySet()) {
-      var inTransactionPut =
-          InTransactionPut.newBuilder()
-              .setKey(writeValue.getKey().key())
-              .setValue(writeValue.getValue())
-              .build();
-      builder.addPuts(inTransactionPut);
-    }
-
-    var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
-    return submitRaftRequest(raftRequest).getTransaction();
   }
 
   private KVStoreRaftResponse submitRaftRequest(KVStoreRaftRequest request) {
