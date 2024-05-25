@@ -34,7 +34,7 @@ public final class BankingApp {
   public static final int MAX_RETRIES = 20;
 
   private final NamiClient client;
-  private AtomicLong latestTid = new AtomicLong(0L);
+  private final AtomicLong latestTid = new AtomicLong(0L);
 
   public static void main(String[] args) throws InterruptedException {
     log.atInfo().log("Starting BankingApp benchmark");
