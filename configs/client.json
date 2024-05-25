@@ -1,4 +1,5 @@
 {
     "chunkConfigPath": "./chunks.json",
-    "peerConfigsPath": "./peers.json"
+    "peerConfigsPath": "./peers.json",
+    "metricsPath": "../metrics/"
 }

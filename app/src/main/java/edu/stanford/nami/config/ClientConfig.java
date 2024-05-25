@@ -9,4 +9,7 @@ public final class ClientConfig {
 
   /** Path to the IP addresses of all peers in the cluster */
   private String peerConfigsPath;
+
+  /** Path to where metrics will be logged */
+  private String metricsPath;
 }
