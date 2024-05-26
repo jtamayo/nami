@@ -230,7 +230,8 @@ public class NamiServer {
     }
 
     @Override
-    public void getBatch(GetBatchRequest request, StreamObserver<GetBatchResponse> responseObserver) {
+    public void getBatch(
+        GetBatchRequest request, StreamObserver<GetBatchResponse> responseObserver) {
       log.atFine().log("gRPC GetBatchRequest %s", request);
       try {
         var responseBuilder = GetBatchResponse.newBuilder();
@@ -272,8 +273,7 @@ public class NamiServer {
       } else {
         log.atWarning().log(
             "Client asked for a key that is not in this store's allocation, key %s", nKey);
-        throw new RuntimeException(
-            "Client asked for a key that is not in this store's allocation");
+        throw new RuntimeException("Client asked for a key that is not in this store's allocation");
       }
     }
   }

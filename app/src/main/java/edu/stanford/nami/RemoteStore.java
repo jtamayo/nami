@@ -2,32 +2,27 @@ package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.Chunks.ChunkRange;
 import edu.stanford.nami.Chunks.PeerAllocation;
-import edu.stanford.nami.KVStoreGrpc.KVStoreFutureStub;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.PeersConfig.PeerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
-
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.flogger.Flogger;
 
@@ -101,7 +96,7 @@ public class RemoteStore implements AutoCloseable {
     }
     var allResponsesFuture = Futures.allAsList(responseFutures);
     try {
-		  var responses = allResponsesFuture.get();
+      var responses = allResponsesFuture.get();
       // sanity check: same number of results as requests
       Preconditions.checkState(responses.size() == orderedPeers.size());
       var result = new HashMap<NKey, ByteString>(keys.size());
@@ -118,7 +113,8 @@ public class RemoteStore implements AutoCloseable {
       }
       return result;
     } catch (Exception e) {
-      // TODO need to distinguish between transient/permanent errors, and retry with different backends
+      // TODO need to distinguish between transient/permanent errors, and retry with different
+      // backends
       log.atSevere().log("Failed to getAsOf for keys %s and tid %s", keys, tid, e);
       throw new RuntimeException(e);
     }
@@ -179,12 +175,12 @@ public class RemoteStore implements AutoCloseable {
     throw new IllegalStateException("There is no allocation that matches key " + key);
   }
 
-  /** 
-   * Find a small-ish set of peers that can serve all the requested keys. This is done
-   * by picking peers at random, and getting as many keys as possible from each one.
-   * <p>
-   * Probably way too CPU intensive, but it might be better than one extra RPC, and it
-   * can easily accommodate retries if one peer is down.
+  /**
+   * Find a small-ish set of peers that can serve all the requested keys. This is done by picking
+   * peers at random, and getting as many keys as possible from each one.
+   *
+   * <p>Probably way too CPU intensive, but it might be better than one extra RPC, and it can easily
+   * accommodate retries if one peer is down.
    */
   private ArrayListMultimap<String, NKey> findPeersWithKeys(Set<NKey> keys) {
     // shuffle peers
@@ -192,7 +188,7 @@ public class RemoteStore implements AutoCloseable {
     Collections.shuffle(shuffledPeerAllocations);
     // now go through each peer in (random) order, try to get as many keys as possible
     var pendingKeys = new HashSet<>(keys);
-    var peerToKeys = ArrayListMultimap.<String, NKey> create(keys.size() / 2, 2);
+    var peerToKeys = ArrayListMultimap.<String, NKey>create(keys.size() / 2, 2);
     for (var allocation : shuffledPeerAllocations) {
       if (allocation.peerId().equals(selfId)) {
         // skip yourself
@@ -212,7 +208,8 @@ public class RemoteStore implements AutoCloseable {
       }
     }
     // validate all keys have been assigned
-    Preconditions.checkState(pendingKeys.isEmpty(), "Some keys don't have a matching allocation: " + pendingKeys);
+    Preconditions.checkState(
+        pendingKeys.isEmpty(), "Some keys don't have a matching allocation: " + pendingKeys);
     return peerToKeys;
   }
 }

@@ -1,7 +1,10 @@
 package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.ByteString;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import lombok.extern.flogger.Flogger;
 import org.rocksdb.RocksDBException;
@@ -31,26 +34,61 @@ public class TransactionProcessor {
     return false;
   }
 
-  private boolean isInTransactionGetValueValid(
-      long previousTransactionTid, InTransactionGet inTransactionGet) {
+  private boolean areInTransactionGetValuesValid(
+      long previousTransactionTid, List<InTransactionGet> inTransactionGets) {
     log.atFine().log(
-        "Validating inTxGet for previousTransactionTid "
-            + previousTransactionTid
-            + " and "
-            + inTransactionGet);
-    NKey nKey = new NKey(inTransactionGet.getKey());
-    ByteString value;
-    if (this.kvStore.hasKeyInAllocation(nKey)) {
-      value =
-          ByteString.copyFrom(
-              withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, previousTransactionTid)));
-    } else if ((value = this.cachingStore.get(nKey)) == null) {
-      value = this.remoteStore.getAsOf(nKey, previousTransactionTid);
-      // Also add this to the cachingStore?
-      this.cachingStore.put(nKey, value);
+        "Validating inTxGets %s for previousTransactionTid %s",
+        inTransactionGets, previousTransactionTid);
+
+    // first try to resolve all values locally
+    var remoteInTxGets = new ArrayList<InTransactionGet>();
+    for (var inTransactionGet : inTransactionGets) {
+      NKey nKey = new NKey(inTransactionGet.getKey());
+      ByteString value;
+      if (this.kvStore.hasKeyInAllocation(nKey)) {
+        value =
+            ByteString.copyFrom(
+                withRocksDBRetries(() -> this.kvStore.getAsOf(nKey, previousTransactionTid)));
+      } else if ((value = this.cachingStore.get(nKey)) == null) {
+        // we don't have this tx locally, so add it to remoteGets and move on
+        remoteInTxGets.add(inTransactionGet);
+        // note we must continue the loop, otherwise the comparison below will fail
+        continue;
+      }
+      Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
+      // if at least one value changed, we know for a fact the whole tx will not commit
+      if (!Objects.equals(value, inTransactionGet.getValue())) {
+        log.atFine().log("Transaction won't commit because key %s has changed", nKey);
+        return false;
+      }
     }
-    Preconditions.checkState(value != null, "Read for a key that does not exist: " + nKey);
-    return Objects.equals(value, inTransactionGet.getValue());
+
+    // if there are remote values pending, then get those
+    if (!remoteInTxGets.isEmpty()) {
+      var remoteNKeys =
+          remoteInTxGets.stream()
+              .map(r -> new NKey(r.getKey()))
+              .collect(ImmutableSet.toImmutableSet());
+      var remoteValues = this.remoteStore.getAsOf(remoteNKeys, previousTransactionTid);
+      // first update caching store with _all_ the remote values we just got
+      for (var entry : remoteValues.entrySet()) {
+        this.cachingStore.put(entry.getKey(), entry.getValue());
+      }
+
+      // then check tx status
+      for (var remoteInTxGet : remoteInTxGets) {
+        var nKey = new NKey(remoteInTxGet.getKey());
+        var remoteValue = remoteValues.get(nKey);
+        Preconditions.checkState(
+            remoteValues.containsKey(nKey), "Remote values is missing key " + nKey);
+        if (!Objects.equals(remoteValue, remoteInTxGet.getValue())) {
+          log.atFine().log("Transaction won't commit because key %s has changed", nKey);
+          return false;
+        }
+      }
+    }
+    // if all local and remote values are OK, then the tx will commit
+    return true;
   }
 
   private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut) {
@@ -81,13 +119,8 @@ public class TransactionProcessor {
       // Leader constructs response to client, so it must always determine tx status
       // If you have local writes, then you also need to determine status
       var priorTid = kvStore.getLatestTid(); // check against most recently seen tid
-      boolean foundInvalidGets = false;
-      for (InTransactionGet inTransactionGet : request.getGetsList()) {
-        if (!this.isInTransactionGetValueValid(priorTid, inTransactionGet)) {
-          foundInvalidGets = true;
-          break;
-        }
-      }
+      boolean foundInvalidGets =
+          !this.areInTransactionGetValuesValid(priorTid, request.getGetsList());
       if (foundInvalidGets) {
         transactionStatus = TransactionStatus.CONFLICT_ABORTED;
       } else {
