@@ -10,6 +10,9 @@ service KVStore {
   // Obtains the value at a given key.
   rpc Get(GetRequest) returns (GetResponse) {}
 
+  // Obtains a list of values for a list of keys.
+  rpc GetBatch(GetBatchRequest) returns (GetBatchResponse) {}
+
   // TODO: Maybe rename?
   // Returns a recently committed tid
   rpc GetRecentTid(GetRecentTidRequest) returns (GetRecentTidResponse) {}
@@ -38,6 +41,18 @@ message ProtoVKey {
 
 message GetRequest {
   ProtoVKey key = 1;
+}
+
+message GetResponse {
+  bytes value = 1;
+}
+
+message GetBatchRequest {
+  repeated ProtoVKey keys = 1;
+}
+
+message GetBatchResponse {
+  repeated bytes values = 1;
 }
 
 message TransactionRequest {
@@ -74,10 +89,6 @@ message GetRecentTidRequest {
 
 message GetRecentTidResponse {
   int64 tid = 1;
-}
-
-message GetResponse {
-  bytes value = 1;
 }
 
 message PutRequest {
