@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
 
@@ -60,7 +59,8 @@ public final class BankingApp {
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
     log.atInfo().log("Setting up metrics");
-    ClientMetrics.startReporting(config.getMetricsPath());
+    var metricsDirectory = Config.resolveRelativeToConfigFile(configFile, config.getMetricsPath());
+    ClientMetrics.startReporting(metricsDirectory);
 
     try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
       new BankingApp(client).run();

@@ -30,6 +30,10 @@ public class Config {
     }
   }
 
+  public static File resolveRelativeToConfigFile(File configFile, String path) {
+    return configFile.getParentFile().toPath().resolve(path).toFile();
+  }
+
   public static final class ChunkRangeDeserializer implements JsonDeserializer<ChunkRange> {
 
     @Override
