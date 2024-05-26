@@ -2,11 +2,10 @@ package edu.stanford.nami.client;
 
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
-import lombok.extern.flogger.Flogger;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import lombok.extern.flogger.Flogger;
 
 @Flogger
 public final class ClientTransaction {

@@ -2,7 +2,6 @@ package edu.stanford.nami.client;
 
 import com.codahale.metrics.*;
 import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
@@ -16,10 +15,11 @@ public class ClientMetrics {
   public static final long METRIC_REPORTING_PERIOD_SEC = 5;
 
   public static final MetricRegistry registry = new MetricRegistry();
+  private static CsvReporter csvReporter = null;
 
-  public void startReporting(String csvPath) {
+  public void startReporting(File metricsDirectory) {
     startLogReporting();
-    startCsvReporting(csvPath);
+    startCsvReporting(metricsDirectory);
   }
 
   public void startLogReporting() {
@@ -32,21 +32,21 @@ public class ClientMetrics {
     reporter.start(METRIC_REPORTING_PERIOD_SEC, TimeUnit.SECONDS);
   }
 
-  public void startCsvReporting(String path) {
-    var outputFile = new File(path);
-    log.atInfo().log("Logging metrics to " + path);
-    outputFile.mkdirs();
-    CsvReporter reporter =
+  public void startCsvReporting(File metricsDirectory) {
+    log.atInfo().log("Logging metrics to " + metricsDirectory.toPath().toAbsolutePath());
+    metricsDirectory.mkdirs();
+    csvReporter =
         CsvReporter.forRegistry(registry)
             .formatFor(Locale.US)
             .convertRatesTo(TimeUnit.SECONDS)
             .convertDurationsTo(TimeUnit.MILLISECONDS)
-            .build(outputFile);
-    reporter.start(1, TimeUnit.SECONDS);
+            .build(metricsDirectory);
+    csvReporter.start(METRIC_REPORTING_PERIOD_SEC, TimeUnit.SECONDS);
   }
 
   public void awaitOneLastReport() {
     try {
+      csvReporter.report();
       Thread.sleep(Duration.of(METRIC_REPORTING_PERIOD_SEC, ChronoUnit.SECONDS));
     } catch (InterruptedException e) {
       // log to stderr since we're probably shutting down
