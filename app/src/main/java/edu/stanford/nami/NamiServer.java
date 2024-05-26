@@ -213,23 +213,33 @@ public class NamiServer {
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
       log.atFine().log("gRPC GetRequest %s", request);
-      NKey nKey = new NKey(request.getKey().getKey());
-      byte[] value;
       try {
-        if (this.kvStore.hasKeyInAllocation(nKey)) {
-          var tid = request.getKey().getTid();
-          this.kvStore.waitUtilTid(tid, 5000);
-          value = this.kvStore.getAsOf(nKey, tid);
-        } else {
-          log.atWarning().log(
-              "Client asked for a key that is not in this store's allocation, key %s", nKey);
-          throw new RuntimeException(
-              "Client asked for a key that is not in this store's allocation");
+        var protoVKey = request.getKey();
+        var value = get(protoVKey);
+        GetResponse response = GetResponse.newBuilder().setValue(value).build();
+        log.atFine().log("Responding to key %s with value %s", protoVKey, response);
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+      } catch (RocksDBException e) {
+        log.atSevere().log("Error processing request %s", request, e);
+        responseObserver.onError(e);
+      } catch (InterruptedException e) {
+        log.atWarning().log("Interrupted while processing request %s", request, e);
+        responseObserver.onError(e);
+      }
+    }
+
+    @Override
+    public void getBatch(GetBatchRequest request, StreamObserver<GetBatchResponse> responseObserver) {
+      log.atFine().log("gRPC GetBatchRequest %s", request);
+      try {
+        var responseBuilder = GetBatchResponse.newBuilder();
+        for (var protoVKey : request.getKeysList()) {
+          var value = get(protoVKey);
+          responseBuilder.addValues(value);
         }
-        Preconditions.checkNotNull(value);
-        GetResponse response =
-            GetResponse.newBuilder().setValue(ByteString.copyFrom(value)).build();
-        log.atFine().log("Responding to key %s with value %s", nKey, response);
+        var response = responseBuilder.build();
+        log.atFine().log("Responding to keys %s with values %s", request.getKeysList(), response);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (RocksDBException e) {
@@ -249,6 +259,22 @@ public class NamiServer {
       log.atFine().log("gRPC GetRecentTid request, responding with %s", response);
       responseObserver.onNext(response);
       responseObserver.onCompleted();
+    }
+
+    private ByteString get(ProtoVKey protoVKey) throws InterruptedException, RocksDBException {
+      NKey nKey = new NKey(protoVKey.getKey());
+      if (this.kvStore.hasKeyInAllocation(nKey)) {
+        var tid = protoVKey.getTid();
+        this.kvStore.waitUtilTid(tid, 5000);
+        byte[] value = this.kvStore.getAsOf(nKey, tid);
+        Preconditions.checkNotNull(value);
+        return ByteString.copyFrom(value);
+      } else {
+        log.atWarning().log(
+            "Client asked for a key that is not in this store's allocation, key %s", nKey);
+        throw new RuntimeException(
+            "Client asked for a key that is not in this store's allocation");
+      }
     }
   }
 
