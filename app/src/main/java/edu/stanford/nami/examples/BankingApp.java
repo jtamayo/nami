@@ -20,15 +20,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
 
 @Flogger
 @RequiredArgsConstructor
 public final class BankingApp {
-  public static final int THREADS = 1;
-  public static final int ACCOUNTS = 10;
+  public static final int THREADS = 10;
+  public static final int ACCOUNTS = 100;
   public static final int TX_PER_THREAD = 10;
   public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;

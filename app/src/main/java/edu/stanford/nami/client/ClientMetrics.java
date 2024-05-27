@@ -2,7 +2,6 @@ package edu.stanford.nami.client;
 
 import com.codahale.metrics.*;
 import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;

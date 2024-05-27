@@ -5,7 +5,6 @@ import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 import com.codahale.metrics.Timer;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import edu.stanford.nami.client.ClientMetrics;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
@@ -15,7 +14,6 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
-
 import lombok.experimental.UtilityClass;
 import lombok.extern.flogger.Flogger;
 import org.apache.ratis.client.RaftClient;
@@ -104,9 +102,9 @@ public final class NamiClient implements AutoCloseable {
                 .build();
         builder.addPuts(inTransactionPut);
       }
-  
+
       var raftRequest = KVStoreRaftRequest.newBuilder().setTransaction(builder).build();
-      return submitRaftRequest(raftRequest).getTransaction();  
+      return submitRaftRequest(raftRequest).getTransaction();
     } finally {
       timer.stop();
     }

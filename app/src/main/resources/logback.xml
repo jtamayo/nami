@@ -7,7 +7,7 @@
   </appender>
 
   # Override log level for specified package
-  <logger name="edu.stanford.nami" level="INFO"/>
+  <logger name="edu.stanford.nami" level="FINE"/>
 
   <root level="WARN">
     <appender-ref ref="stdout" />
