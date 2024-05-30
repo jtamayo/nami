@@ -138,7 +138,6 @@ public class VersionedKVStore {
 
     public synchronized void resetLatestTid(long tid) {
       log.atFine().log("Trying to reset latestTid to " + tid);
-      // TODO: make this atomic/add a lock???
       this.latestTid = tid;
       this.notifyAll();
     }
