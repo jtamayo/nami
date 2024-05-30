@@ -2,6 +2,7 @@ package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
 import lombok.extern.flogger.Flogger;
+import org.rocksdb.FlushOptions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
@@ -63,6 +64,19 @@ public class VersionedKVStore {
     return db.get(key.toBytes());
   }
 
+  public void flush() throws RocksDBException {
+    // TODO: add benchmark metrics here to test
+    db.flushWal(true);
+
+    FlushOptions flushOptions = new FlushOptions();
+    // Set if the flush operation shall block until it terminates.
+    flushOptions.setWaitForFlush(true);
+    // Set to false so that flush would not proceed immediately even it means writes will
+    // stall for the duration of the flush.
+    flushOptions.setAllowWriteStall(false);
+    db.flush(flushOptions);
+  }
+
   /** Get a value as of tid or before it. */
   public byte[] getAsOf(NKey key, long tid) throws RocksDBException {
     Preconditions.checkArgument(
@@ -106,6 +120,10 @@ public class VersionedKVStore {
     return this.tidSynchronizer.latestTid;
   }
 
+  public synchronized void resetLatestTid(long tid) {
+    this.tidSynchronizer.resetLatestTid(tid);
+  }
+
   private static final class TidSynchronizer {
     private volatile long latestTid;
 
@@ -116,6 +134,13 @@ public class VersionedKVStore {
         this.latestTid = tid;
         this.notifyAll();
       }
+    }
+
+    public synchronized void resetLatestTid(long tid) {
+      log.atFine().log("Trying to reset latestTid to " + tid);
+      // TODO: make this atomic/add a lock???
+      this.latestTid = tid;
+      this.notifyAll();
     }
 
     public synchronized void checkHasSeenTid(long tid) {

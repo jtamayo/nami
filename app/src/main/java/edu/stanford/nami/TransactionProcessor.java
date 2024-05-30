@@ -3,13 +3,14 @@ package edu.stanford.nami;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import java.util.Objects;
+import lombok.Getter;
 import lombok.extern.flogger.Flogger;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.Status;
 
 @Flogger
 public class TransactionProcessor {
-  private final VersionedKVStore kvStore;
+  @Getter private final VersionedKVStore kvStore;
   private final RemoteStore remoteStore;
   private final CachingStore cachingStore;
   private static final int NUM_DB_RETRIES = 3;
@@ -130,8 +131,6 @@ public class TransactionProcessor {
       default:
         throw new IllegalArgumentException("Unknown transaction status " + transactionStatus);
     }
-    // regardless, we must update latest tid
-    kvStore.updateLatestTid(assignedTid);
 
     return transactionStatus;
   }

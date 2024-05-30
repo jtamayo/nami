@@ -24,6 +24,7 @@ import org.apache.ratis.grpc.GrpcConfigKeys;
 import org.apache.ratis.protocol.RaftPeerId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
+import org.apache.ratis.server.storage.RaftStorage;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -61,6 +62,16 @@ public class NamiServer {
     // set the storage directory (different for each peer) in the RaftProperty object
     RaftServerConfigKeys.setStorageDir(properties, Collections.singletonList(storageDir));
 
+    // Enable triggering snapshot automatically when log size exceeds limit
+    RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(properties, true);
+    RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(properties, 2500);
+
+    // customize snapshot creation gap
+    RaftServerConfigKeys.Snapshot.setCreationGap(properties, 1024L);
+
+    // Disable installing snapshot in a new follower
+    RaftServerConfigKeys.Log.Appender.setInstallSnapshotEnabled(properties, true);
+
     // set the port (different for each peer) in RaftProperty object
     final int raftPeerPort = peerConfig.getRaftPort();
     GrpcConfigKeys.Server.setPort(properties, raftPeerPort);
@@ -70,6 +81,7 @@ public class NamiServer {
         RaftServer.newBuilder()
             .setGroup(peersConfig.getRaftGroup())
             .setProperties(properties)
+            .setOption(RaftStorage.StartupOption.RECOVER)
             .setServerId(RaftPeerId.valueOf(peerConfig.getPeerId()))
             .setStateMachine(stateMachine)
             .build();
