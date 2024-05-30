@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "edu.stanford.nami";
+option java_outer_classname = "NativesRockDBProto";
+
+package nativesRocksDB;
+
+service NativeRocksDB {
+  rpc BeginTransaction(NativeRocksBeginTransactionRequest) returns (NativeRocksBeginTransactionResponse) {}
+
+  rpc GetForUpdateInTransaction(NativeRocksInTransactionGetForUpdateRequest) returns (NativeRocksInTransactionGetForUpdateResponse) {}
+
+  rpc PutIntransaction(NativeRocksInTransactionPutRequest) returns (NativeRocksInTransactionPutResponse) {}
+
+  rpc CommitTransaction(NativeRocksTransactionCommitRequest) returns (NativeRocksTransactionCommitResponse) {}
+}
+
+// GetForUpdate
+message NativeRocksInTransactionGetForUpdateRequest {
+  int64 tid = 1;
+  string key = 2;
+}
+
+message NativeRocksInTransactionGetForUpdateResponse {
+  bytes value = 1;
+}
+
+message NativeRocksInTransactionPutRequest {
+  int64 tid = 1;
+  string key = 2;
+  bytes value = 3;
+}
+
+message NativeRocksInTransactionPutResponse {}
+
+message NativeRocksBeginTransactionRequest {}
+
+message NativeRocksBeginTransactionResponse {
+  // ID of the in-progress transaction
+  int64 tid = 1;
+}
+
+message NativeRocksTransactionCommitRequest {
+  int64 tid = 1;
+}
+
+message NativeRocksTransactionCommitResponse {
+  NativeRocksTransactionStatus status = 1;
+}
+
+enum NativeRocksTransactionStatus {
+  COMMITTED = 0;
+  ABORTED = 1;
+  ERROR = 2;
+}
+
+
