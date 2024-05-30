@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "edu.stanford.nami";
+option java_outer_classname = "NativesRockDBProto";
+
+package nativesRocksDB;
+
+service NativeRocksDB {
+  // Obtains the value at a given key. Do we need this?
+  rpc Get(NativeRocksGetRequest) returns (NativeRocksGetResponse) {}
+
+  // Obtains a list of values for a list of keys. Do we need this?
+  rpc GetBatch(NativeRocksGetBatchRequest) returns (NativeRocksGetBatchResponse) {}
+
+  rpc BeginTransaction(NativeRocksBeginTransactionRequest) returns (NativeRocksBeginTransactionResponse) {}
+
+  rpc GetForUpdateInTransaction(NativeRocksInTransactionGetForUpdateRequest) returns (NativeRocksInTransactionGetForUpdateResponse) {}
+
+  rpc PutIntransaction(NativeRocksInTransactionPutRequest) returns (NativeRocksInTransactionPutResponse) {}
+
+  rpc CommitTransaction(NativeRocksTransactionCommitRequest) returns (NativeRocksTransactionCommitResponse) {}
+}
+
+message NativeRocksGetRequest {
+  string key = 1;
+}
+
+message NativeRocksGetResponse {
+  bytes value = 1;
+}
+
+message NativeRocksGetBatchRequest {
+  repeated string keys = 1;
+}
+
+message NativeRocksGetBatchResponse {
+  repeated bytes values = 1;
+}
+
+// GetForUpdate
+message NativeRocksInTransactionGetForUpdateRequest {
+  int64 id = 1;
+  string key = 2;
+}
+
+message NativeRocksInTransactionGetForUpdateResponse {
+  bytes value = 1;
+}
+
+message NativeRocksInTransactionPutRequest {
+  int64 id = 1;
+  string key = 2;
+  bytes value = 3;
+}
+
+message NativeRocksInTransactionPutResponse {}
+
+message NativeRocksBeginTransactionRequest {}
+
+message NativeRocksBeginTransactionResponse {
+  // ID of the in-progress transaction
+  int64 id = 1;
+}
+
+message NativeRocksTransactionCommitRequest {
+  int64 tid = 1;
+}
+
+message NativeRocksTransactionCommitResponse {
+  NativeRocksTransactionStatus status = 1;
+  // TID of the transaction that committed?
+  int64 tid = 2;
+}
+
+enum NativeRocksTransactionStatus {
+  COMMITTED = 0;
+  CONFLICT_ABORTED = 1;
+  UNKNOWN = 3;
+}
+
+
