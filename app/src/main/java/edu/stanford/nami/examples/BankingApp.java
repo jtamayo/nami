@@ -191,7 +191,8 @@ public final class BankingApp {
         if (status == TransactionStatus.COMMITTED) {
           break;
         }
-        log.atInfo().log("Worker " + workerIndex + " encountered a conflict, retrying...");
+        log.atInfo().log(
+            "Worker %s encountered a conflict, attempt %s, retrying...", workerIndex, numRetries);
         numRetries++;
       }
     }
