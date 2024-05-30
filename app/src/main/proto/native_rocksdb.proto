@@ -52,6 +52,7 @@ message NativeRocksTransactionCommitResponse {
 enum NativeRocksTransactionStatus {
   COMMITTED = 0;
   ABORTED = 1;
+  ERROR = 2;
 }
 
 
