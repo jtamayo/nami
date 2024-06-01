@@ -24,10 +24,16 @@ import org.apache.ratis.protocol.RaftClientReply;
 @Flogger
 public final class NamiClient implements AutoCloseable {
   @UtilityClass
-  private static final class Timers {
-    Timer remoteGet = ClientMetrics.registry.timer("nami-client.remoteGet");
-    Timer getRecentTid = ClientMetrics.registry.timer("nami-client.getRecentTid");
-    Timer commit = ClientMetrics.registry.timer("nami-client.commit");
+  public static final class Timers {
+    Timer remoteGet;
+    Timer getRecentTid;
+    Timer commit;
+
+    public static void recreateTimers(String prefix) {
+      remoteGet = ClientMetrics.registry.timer(prefix + "nami-client.remoteGet");
+      getRecentTid = ClientMetrics.registry.timer(prefix + "nami-client.getRecentTid");
+      commit = ClientMetrics.registry.timer(prefix + "nami-client.commit");
+    }
   }
 
   /**
