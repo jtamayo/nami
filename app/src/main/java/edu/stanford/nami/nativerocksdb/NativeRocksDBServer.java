@@ -1,5 +1,6 @@
 package edu.stanford.nami.nativerocksdb;
 
+import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
@@ -11,18 +12,21 @@ import java.util.concurrent.TimeUnit;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
+import org.rocksdb.OptimisticTransactionDB;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
 
 @Flogger
 public class NativeRocksDBServer {
   @Getter private final int port;
   private final Server server;
 
-  public NativeRocksDBServer(int port, RocksDB db) {
+  public NativeRocksDBServer(int port, OptimisticTransactionDB db) {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
-    server = serverBuilder.addService(new NativeRocksDBServer.NativeRocksDBService()).build();
+    var store = new NativeRocksStore(db);
+    server = serverBuilder.addService(new NativeRocksDBServer.NativeRocksDBService(store)).build();
   }
 
   /** Start serving requests. */
@@ -73,7 +77,7 @@ public class NativeRocksDBServer {
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
       options.setCreateIfMissing(true);
-      try (var db = RocksDB.open(options, rocksDbPath.toString())) {
+      try (var db = OptimisticTransactionDB.open(options, rocksDbPath.toString())) {
         var server = new NativeRocksDBServer(port, db);
         server.start();
         server.blockUntilShutdown();
@@ -83,13 +87,15 @@ public class NativeRocksDBServer {
 
   @RequiredArgsConstructor
   private static class NativeRocksDBService extends NativeRocksDBGrpc.NativeRocksDBImplBase {
+    private final NativeRocksStore store;
+
     public void beginTransaction(
         NativeRocksBeginTransactionRequest request,
         StreamObserver<NativeRocksBeginTransactionResponse> responseObserver) {
       log.atFine().log("gRPC NativeRocksBeginTransactionRequest %s", request);
       var responseBuilder = NativeRocksBeginTransactionResponse.newBuilder();
-      // TODO: change this
-      responseBuilder.setTid(1L);
+      var tid = store.begin();
+      responseBuilder.setTid(tid);
       responseObserver.onNext(responseBuilder.build());
       responseObserver.onCompleted();
     }
@@ -98,10 +104,16 @@ public class NativeRocksDBServer {
         NativeRocksInTransactionGetForUpdateRequest request,
         StreamObserver<NativeRocksInTransactionGetForUpdateResponse> responseObserver) {
       log.atFine().log("gRPC NativeRocksInTransactionGetForUpdateRequest %s", request);
-      var responseBuilder = NativeRocksInTransactionGetForUpdateResponse.newBuilder();
-      // TODO: change this
-      responseObserver.onNext(responseBuilder.build());
-      responseObserver.onCompleted();
+      try {
+        byte[] value = store.getForUpdate(request.getTid(), new NKey(request.getKey()));
+        var responseBuilder = NativeRocksInTransactionGetForUpdateResponse.newBuilder();
+        responseBuilder.setValue(ByteString.copyFrom(value));
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+      } catch (RocksDBException e) {
+        log.atSevere().log("Error processing request %s", request, e);
+        responseObserver.onError(e);
+      }
     }
 
     public void putIntransaction(
@@ -109,9 +121,15 @@ public class NativeRocksDBServer {
         StreamObserver<NativeRocksInTransactionPutResponse> responseObserver) {
       log.atFine().log("gRPC NativeRocksInTransactionPutRequest %s", request);
       var responseBuilder = NativeRocksInTransactionPutResponse.newBuilder();
-      // TODO: change this
-      responseObserver.onNext(responseBuilder.build());
-      responseObserver.onCompleted();
+      try {
+        store.putInTransaction(
+            request.getTid(), new NKey(request.getKey()), request.getValue().toByteArray());
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+      } catch (RocksDBException e) {
+        log.atSevere().log("Error processing request %s", request, e);
+        responseObserver.onError(e);
+      }
     }
 
     public void commitTransaction(
@@ -119,10 +137,20 @@ public class NativeRocksDBServer {
         StreamObserver<NativeRocksTransactionCommitResponse> responseObserver) {
       log.atFine().log("gRPC NativeRocksTransactionCommitRequest %s", request);
       var responseBuilder = NativeRocksTransactionCommitResponse.newBuilder();
-      // TODO: change this
-      responseBuilder.setStatus(NativeRocksTransactionStatus.COMMITTED);
-      responseObserver.onNext(responseBuilder.build());
-      responseObserver.onCompleted();
+      boolean success;
+      try {
+        success = store.commit(request.getTid());
+        if (success) {
+          responseBuilder.setStatus(NativeRocksTransactionStatus.COMMITTED);
+        } else {
+          responseBuilder.setStatus(NativeRocksTransactionStatus.ABORTED);
+        }
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+      } catch (RocksDBException e) {
+        log.atSevere().log("Error processing request %s", request, e);
+        responseObserver.onError(e);
+      }
     }
   }
 

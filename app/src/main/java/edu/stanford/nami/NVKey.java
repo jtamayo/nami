@@ -4,7 +4,7 @@ import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-record NVKey(long tid, String key) {
+public record NVKey(long tid, String key) {
   public static final int TID_BYTE_SIZE = 8;
 
   public NVKey(long tid, String key) {
