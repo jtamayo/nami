@@ -12,9 +12,12 @@ import edu.stanford.nami.Chunks.PeerAllocation;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.PeersConfig.PeerConfig;
+import io.grpc.ConnectivityState;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,6 +28,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.flogger.Flogger;
 
@@ -37,7 +41,6 @@ public class RemoteStore implements AutoCloseable {
   private final Map<String, KVStoreGrpc.KVStoreFutureStub> asyncPeerClients;
   private final List<String> peerNames;
   private final Map<String, ManagedChannel> peerChannels;
-  private final ExecutorService executor;
 
   public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
     Preconditions.checkNotNull(selfId);
@@ -48,7 +51,7 @@ public class RemoteStore implements AutoCloseable {
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
     var peerChannelsBuilder = ImmutableMap.<String, ManagedChannel>builder();
     // all clients share the same executor
-    executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
@@ -85,45 +88,20 @@ public class RemoteStore implements AutoCloseable {
   }
 
   public Map<NKey, ByteString> getAsOf(Set<NKey> keys, long tid) {
-    var peersToKeys = findPeersWithKeys(keys);
-    // copy the peers to a list, so we can keep track of them in order
-    // peersToKeys is an ArrayListMultimap, so it'll keep each key in order too
-    var orderedPeers = ImmutableList.copyOf(peersToKeys.keySet());
-    var responseFutures = new ArrayList<ListenableFuture<GetBatchResponse>>(peerClients.size());
-    for (var peer : orderedPeers) {
-      var keysInPeer = peersToKeys.get(peer);
-      var getBatchRequestBuilder = GetBatchRequest.newBuilder();
-      for (var key : keysInPeer) {
-        var protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
-        getBatchRequestBuilder.addKeys(protoVKey);
-      }
-      var asyncPeerClient = asyncPeerClients.get(peer);
-      var response = asyncPeerClient.getBatch(getBatchRequestBuilder.build());
-      responseFutures.add(response);
-    }
-    var allResponsesFuture = Futures.allAsList(responseFutures);
-    try {
-      var responses = allResponsesFuture.get();
-      // sanity check: same number of results as requests
-      Preconditions.checkState(responses.size() == orderedPeers.size());
-      var result = new HashMap<NKey, ByteString>(keys.size());
-      for (int i = 0; i < responses.size(); i++) {
-        var peer = orderedPeers.get(i);
-        var keysInPeer = peersToKeys.get(peer);
-        var values = responses.get(i).getValuesList();
-        Preconditions.checkState(keysInPeer.size() == values.size());
-        for (int j = 0; j < values.size(); j++) {
-          var nKey = keysInPeer.get(j);
-          var value = values.get(j);
-          result.put(nKey, value);
+    while (true) {
+      try {
+        return tryGetAsOf(keys, tid);
+      } catch (StatusRuntimeException e) {
+        var statusException = (StatusRuntimeException) e.getCause();
+        if (isRetryable(statusException.getStatus())) {
+          // TODO retry
         }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        log.atSevere().log(
+            "Interrupted while trying to getAsOf for keys %s and tid %s", keys, tid, e);
+        throw new RuntimeException(e);
       }
-      return result;
-    } catch (Exception e) {
-      // TODO need to distinguish between transient/permanent errors, and retry with different
-      // backends
-      log.atSevere().log("Failed to getAsOf for keys %s and tid %s", keys, tid, e);
-      throw new RuntimeException(e);
     }
   }
 
@@ -164,6 +142,51 @@ public class RemoteStore implements AutoCloseable {
     log.atFine().log("Shut down RemoteStore");
   }
 
+  private Map<NKey, ByteString> tryGetAsOf(Set<NKey> keys, long tid) throws InterruptedException {
+    var peersToKeys = findPeersWithKeys(keys);
+    // copy the peers to a list, so we can keep track of them in order
+    // peersToKeys is an ArrayListMultimap, so it'll keep each key in order too
+    var orderedPeers = ImmutableList.copyOf(peersToKeys.keySet());
+    var responseFutures = new ArrayList<ListenableFuture<GetBatchResponse>>(peerClients.size());
+    for (var peer : orderedPeers) {
+      var keysInPeer = peersToKeys.get(peer);
+      var getBatchRequestBuilder = GetBatchRequest.newBuilder();
+      for (var key : keysInPeer) {
+        var protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
+        getBatchRequestBuilder.addKeys(protoVKey);
+      }
+      var asyncPeerClient = asyncPeerClients.get(peer);
+      var response = asyncPeerClient.getBatch(getBatchRequestBuilder.build());
+      responseFutures.add(response);
+    }
+    var allResponsesFuture = Futures.allAsList(responseFutures);
+    try {
+      var responses = allResponsesFuture.get();
+      // sanity check: same number of results as requests
+      Preconditions.checkState(responses.size() == orderedPeers.size());
+      var result = new HashMap<NKey, ByteString>(keys.size());
+      for (int i = 0; i < responses.size(); i++) {
+        var peer = orderedPeers.get(i);
+        var keysInPeer = peersToKeys.get(peer);
+        var values = responses.get(i).getValuesList();
+        Preconditions.checkState(keysInPeer.size() == values.size());
+        for (int j = 0; j < values.size(); j++) {
+          var nKey = keysInPeer.get(j);
+          var value = values.get(j);
+          result.put(nKey, value);
+        }
+      }
+      return result;
+    } catch (ExecutionException e) {
+      // rethrow any gRPC exceptions as they are, or just wrap anything else
+      var cause = e.getCause();
+      if (cause instanceof StatusRuntimeException) {
+        throw (StatusRuntimeException) cause;
+      }
+      throw new RuntimeException(e);
+    }
+  }
+
   private KVStoreGrpc.KVStoreBlockingStub findPeerWithKey(NKey key) {
     var keyChunk = keyToChunkMapper.map(key);
     // most naive impl possible: go through chunks, pick first one that has it
@@ -197,8 +220,14 @@ public class RemoteStore implements AutoCloseable {
     var pendingKeys = new HashSet<>(keys);
     var peerToKeys = ArrayListMultimap.<String, NKey>create(keys.size() / 2, 2);
     for (var allocation : shuffledPeerAllocations) {
-      if (allocation.peerId().equals(selfId)) {
+      String peerId = allocation.peerId();
+      if (peerId.equals(selfId)) {
         // skip yourself
+        continue;
+      }
+      var peerChannel = peerChannels.get(allocation.peerId());
+      if (!isUp(peerChannel)) {
+        // don't try to connect to failed channels
         continue;
       }
       for (var pendingKeysIterator = pendingKeys.iterator(); pendingKeysIterator.hasNext(); ) {
@@ -218,5 +247,26 @@ public class RemoteStore implements AutoCloseable {
     Preconditions.checkState(
         pendingKeys.isEmpty(), "Some keys don't have a matching allocation: " + pendingKeys);
     return peerToKeys;
+  }
+
+  private static boolean isUp(ManagedChannel channel) {
+    ConnectivityState channelState = channel.getState(false);
+    switch (channelState) {
+      case CONNECTING:
+      case IDLE:
+      case READY:
+        // should be ok to attempt to send data
+        return true;
+      case SHUTDOWN:
+      case TRANSIENT_FAILURE:
+        // remote server is down, or local client is terminating connections
+        return false;
+      default:
+        throw new IllegalStateException("Unknown channel state " + channelState);
+    }
+  }
+
+  private static boolean isRetryable(Status status) {
+    return true;
   }
 }
