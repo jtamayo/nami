@@ -1,10 +1,13 @@
 package edu.stanford.nami.examples;
 
+import com.codahale.metrics.Histogram;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+import edu.stanford.nami.Account;
 import edu.stanford.nami.NKey;
 import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionResponse;
@@ -16,28 +19,35 @@ import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
 import edu.stanford.nami.config.Config;
 import edu.stanford.nami.config.PeersConfig;
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-
 import edu.stanford.nami.nativerocksdb.NativeRocksDBClient;
 import edu.stanford.nami.nativerocksdb.NativeRocksDBClientTransaction;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.UtilityClass;
 import lombok.extern.flogger.Flogger;
 
 @Flogger
 @RequiredArgsConstructor
 public final class BankingApp {
+  @UtilityClass
+  private static final class Metrics {
+    Histogram accountSize = ClientMetrics.registry.histogram("banking-app.accountSize");
+  }
+
   public static final int THREADS = 10;
   public static final int ACCOUNTS = 100;
   public static final int TX_PER_THREAD = 10;
   public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
+  public static final int GARBAGE_LENGTH = 1000;
+
+  private static final Random random = new Random();
 
   public final Optional<NamiClient> namiClient;
   public final Optional<NativeRocksDBClient> nativeRocksClient;
@@ -136,7 +146,7 @@ public final class BankingApp {
   public ClientTransaction begin(Optional<Long> snapshotTid) {
     if (namiClient.isPresent()) {
       return NamiClientTransaction.begin(namiClient.get(), snapshotTid);
-    } else if (nativeRocksClient.isPresent()){
+    } else if (nativeRocksClient.isPresent()) {
       return NativeRocksDBClientTransaction.begin(nativeRocksClient.get());
     }
     throw new RuntimeException("Could not find either nami or rocks db client");
@@ -208,7 +218,7 @@ public final class BankingApp {
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
-        var tx = begin( Optional.empty());
+        var tx = begin(Optional.empty());
         moveMoneyInTransaction(tx);
         TransactionResponse outcome = tx.commit();
         TransactionStatus status = outcome.getStatus();
@@ -251,17 +261,33 @@ public final class BankingApp {
   }
 
   private long readBalance(ClientTransaction tx, String accountKey) {
-    ByteBuffer value = tx.get(new NKey(accountKey)).asReadOnlyByteBuffer();
-    var balance = value.getLong();
-    // paranoia: check we read it all
-    Preconditions.checkState(!value.hasRemaining());
-    return balance;
+    var bytes = tx.get(new NKey(accountKey));
+    Account account;
+    try {
+      account = Account.parseFrom(bytes);
+    } catch (InvalidProtocolBufferException e) {
+      log.atSevere().log("Error parsing account contents for accountKey %s", accountKey, e);
+      throw new RuntimeException(e);
+    }
+    return account.getBalance();
   }
 
   private void writeBalance(ClientTransaction tx, String accountKey, long balance) {
-    var byteBuffer = ByteBuffer.allocate(8);
-    byteBuffer.putLong(balance);
-    byteBuffer.rewind();
-    tx.put(new NKey(accountKey), ByteString.copyFrom(byteBuffer));
+    var builder = Account.newBuilder();
+    builder.setAccountId(accountKey);
+    builder.setBalance(balance);
+    builder.setDescription(randomDescription(GARBAGE_LENGTH));
+    ByteString payload = builder.build().toByteString();
+    Metrics.accountSize.update(payload.size());
+    tx.put(new NKey(accountKey), payload);
+  }
+
+  private static String randomDescription(int length) {
+    var builder = new StringBuilder();
+    for (int i = 0; i < length; i++) {
+      var c = random.nextInt('a', 'z');
+      builder.append((char) c);
+    }
+    return builder.toString();
   }
 }
