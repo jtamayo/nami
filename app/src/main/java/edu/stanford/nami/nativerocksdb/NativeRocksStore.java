@@ -25,6 +25,7 @@ public class NativeRocksStore {
 
   public long begin() {
     try (var options = new WriteOptions()) {
+      options.setSync(true);
       var tid = nextTid.getAndIncrement();
       var transaction = db.beginTransaction(options);
       transactions.put(tid, transaction);
