@@ -17,11 +17,18 @@ public class NativeRocksDBClient {
   }
 
   @UtilityClass
-  private static final class Timers {
-    Timer begin = ClientMetrics.registry.timer("native-rocks-db-client.begin");
-    Timer getForUpdate = ClientMetrics.registry.timer("native-rocks-db-client.getForUpdate");
-    Timer put = ClientMetrics.registry.timer("native-rocks-db-client.put");
-    Timer commit = ClientMetrics.registry.timer("native-rocks-db.commit");
+  public static final class Timers {
+    Timer begin;
+    Timer getForUpdate;
+    Timer put;
+    Timer commit;
+
+    public static void recreateTimers(String prefix) {
+      begin = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.begin");
+      getForUpdate = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.getForUpdate");
+      put = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.put");
+      commit = ClientMetrics.registry.timer(prefix + "native-rocks-db.commit");
+    }
   }
 
   public NativeRocksInTransactionPutResponse put(long tid, String key, ByteString value) {

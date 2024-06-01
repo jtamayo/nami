@@ -40,12 +40,13 @@ public final class BankingApp {
   }
 
   public static final int THREADS = 10;
-  public static final int ACCOUNTS = 100;
+  public static final int ACCOUNTS = 10000;
   public static final int TX_PER_THREAD = 10;
   public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
   public static final int GARBAGE_LENGTH = 1000;
+  public static final int ACCOUNT_CREATION_BATCH_SIZE = 500;
 
   private static final Random random = new Random();
 
@@ -118,12 +119,14 @@ public final class BankingApp {
   }
 
   public void run() throws InterruptedException {
+    recreateTimers("setup");
     var accountKeys = createAccounts();
-
-    Thread.sleep(1000);
 
     // INVARIANT: all account balances should add up to zero
     validateZeroNetBalance(accountKeys);
+
+    // Reset metrics so we measure only money movements
+    recreateTimers("benchmark");
 
     var workers = new ArrayList<Worker>();
     for (int i = 0; i < THREADS; i++) {
@@ -137,7 +140,7 @@ public final class BankingApp {
       worker.join();
     }
 
-    Thread.sleep(1000);
+    recreateTimers("teardown");
 
     // INVARIANT: after all movements, all balances should add up to zero
     validateZeroNetBalance(accountKeys);
@@ -152,19 +155,41 @@ public final class BankingApp {
     throw new RuntimeException("Could not find either nami or rocks db client");
   }
 
+  public void recreateTimers(String prefix) {
+    if (namiClient.isPresent()) {
+      NamiClient.Timers.recreateTimers(prefix);
+    } else if (nativeRocksClient.isPresent()) {
+      NativeRocksDBClient.Timers.recreateTimers(prefix);
+    } else {
+      throw new RuntimeException("Could not find either nami or rocks db client");
+    }
+  }
+
   /** Create ACCOUNT accounts with UUIDs as keys, and a balance of zero. */
   private List<String> createAccounts() {
     var accountKeys = new ArrayList<String>();
     var tx = begin(Optional.empty());
+    int accountsInBatch = 0;
     for (int i = 0; i < ACCOUNTS; i++) {
       var accountKey = UUID.randomUUID().toString();
       // zero out all balances
-      log.atInfo().log("Creating account " + accountKey);
       writeBalance(tx, accountKey, 0);
       accountKeys.add(accountKey);
+      accountsInBatch++;
+      if (accountsInBatch >= ACCOUNT_CREATION_BATCH_SIZE) {
+        log.atInfo().log("Creating %s accounts", accountsInBatch);
+        var response = tx.commit();
+        updateLatestTid(response.getTid());
+        tx = begin(Optional.empty());
+        accountsInBatch = 0;
+      }
     }
-    TransactionResponse response = tx.commit();
-    updateLatestTid(response.getTid());
+
+    if (accountsInBatch > 0) {
+      log.atInfo().log("Creating %s accounts", accountsInBatch);
+      var response = tx.commit();
+      updateLatestTid(response.getTid());
+    }
 
     return accountKeys;
   }
