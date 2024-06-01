@@ -10,5 +10,4 @@ public interface ClientTransaction {
   void put(NKey key, ByteString value);
 
   TransactionResponse commit();
-
 }

@@ -5,8 +5,6 @@ import edu.stanford.nami.*;
 import edu.stanford.nami.client.ClientTransaction;
 import lombok.extern.flogger.Flogger;
 
-import java.util.Optional;
-
 @Flogger
 public class NativeRocksDBClientTransaction implements ClientTransaction {
   private final long tid;
@@ -43,8 +41,7 @@ public class NativeRocksDBClientTransaction implements ClientTransaction {
   }
 
   // start a new transaction against the provided Nami cluster
-  public static NativeRocksDBClientTransaction begin(
-      NativeRocksDBClient client, Optional<Long> snapshotTid) {
+  public static NativeRocksDBClientTransaction begin(NativeRocksDBClient client) {
     var response = client.begin();
     var tid = response.getTid();
     return new NativeRocksDBClientTransaction(client, tid);

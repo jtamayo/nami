@@ -10,6 +10,7 @@ import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionResponse;
 import edu.stanford.nami.TransactionStatus;
 import edu.stanford.nami.client.ClientMetrics;
+import edu.stanford.nami.client.ClientTransaction;
 import edu.stanford.nami.client.NamiClientTransaction;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
@@ -20,6 +21,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+
+import edu.stanford.nami.nativerocksdb.NativeRocksDBClient;
+import edu.stanford.nami.nativerocksdb.NativeRocksDBClientTransaction;
+import io.grpc.Grpc;
+import io.grpc.InsecureChannelCredentials;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
 
@@ -33,18 +39,21 @@ public final class BankingApp {
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
 
-  private final NamiClient client;
+  public final Optional<NamiClient> namiClient;
+  public final Optional<NativeRocksDBClient> nativeRocksClient;
+
   private final AtomicLong latestTid = new AtomicLong(0L);
 
   public static void main(String[] args) throws InterruptedException {
     log.atInfo().log("Starting BankingApp benchmark");
     log.atInfo().log("Running in " + new File(".").getAbsolutePath());
 
-    if (args.length != 1) {
-      log.atSevere().log("Invalid usage. Usage: banking-app <config_file>");
+    if (args.length != 2) {
+      log.atSevere().log("Invalid usage. Usage: banking-app <Nami|Rocks> <config_file>");
       System.exit(-1);
     }
-    var configFileName = args[0];
+    boolean isNami = Objects.equals(args[0], "Nami");
+    var configFileName = args[1];
     var configFile = new File(configFileName);
 
     if (!configFile.exists()) {
@@ -62,13 +71,23 @@ public final class BankingApp {
     var metricsDirectory = Config.resolveRelativeToConfigFile(configFile, config.getMetricsPath());
     ClientMetrics.startReporting(metricsDirectory);
 
-    try (NamiClient client = new NamiClient(peersConfig, chunksConfig)) {
-      new BankingApp(client).run();
+    if (isNami) {
+      try (NamiClient namiClient = new NamiClient(peersConfig, chunksConfig)) {
+        new BankingApp(Optional.of(namiClient), Optional.empty()).run();
+        log.atInfo().log("Flushing metrics");
+        ClientMetrics.awaitOneLastReport();
+        log.atInfo().log("Done running banking app");
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    } else {
+      var target = peersConfig.getPeers().getFirst().getKvAddress();
+      var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
+      NativeRocksDBClient rocksDBClient = new NativeRocksDBClient(channel);
+      new BankingApp(Optional.empty(), Optional.of(rocksDBClient)).run();
       log.atInfo().log("Flushing metrics");
       ClientMetrics.awaitOneLastReport();
       log.atInfo().log("Done running banking app");
-    } catch (Exception e) {
-      e.printStackTrace();
     }
   }
 
@@ -114,10 +133,19 @@ public final class BankingApp {
     validateZeroNetBalance(accountKeys);
   }
 
+  public ClientTransaction begin(Optional<Long> snapshotTid) {
+    if (namiClient.isPresent()) {
+      return NamiClientTransaction.begin(namiClient.get(), snapshotTid);
+    } else if (nativeRocksClient.isPresent()){
+      return NativeRocksDBClientTransaction.begin(nativeRocksClient.get());
+    }
+    throw new RuntimeException("Could not find either nami or rocks db client");
+  }
+
   /** Create ACCOUNT accounts with UUIDs as keys, and a balance of zero. */
   private List<String> createAccounts() {
     var accountKeys = new ArrayList<String>();
-    var tx = NamiClientTransaction.begin(client, Optional.empty());
+    var tx = begin(Optional.empty());
     for (int i = 0; i < ACCOUNTS; i++) {
       var accountKey = UUID.randomUUID().toString();
       // zero out all balances
@@ -134,7 +162,7 @@ public final class BankingApp {
   /** Validate that, in total, all accounts still have zero balance. */
   private void validateZeroNetBalance(List<String> accountKeys) {
     // begin tx so we know all values are consistent
-    var tx = NamiClientTransaction.begin(client, Optional.of(this.latestTid.get()));
+    var tx = begin(Optional.of(this.latestTid.get()));
     var positiveBalance = 0L;
     var negativeBalance = 0L;
     for (String accountKey : accountKeys) {
@@ -180,7 +208,7 @@ public final class BankingApp {
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
-        var tx = NamiClientTransaction.begin(client, Optional.empty());
+        var tx = begin( Optional.empty());
         moveMoneyInTransaction(tx);
         TransactionResponse outcome = tx.commit();
         TransactionStatus status = outcome.getStatus();
@@ -197,7 +225,7 @@ public final class BankingApp {
       }
     }
 
-    private void moveMoneyInTransaction(NamiClientTransaction tx) {
+    private void moveMoneyInTransaction(ClientTransaction tx) {
       var maxIndex = accountKeys.size();
 
       for (int i = 0; i < MOVES_PER_TX; i++) {
@@ -222,7 +250,7 @@ public final class BankingApp {
     }
   }
 
-  private long readBalance(NamiClientTransaction tx, String accountKey) {
+  private long readBalance(ClientTransaction tx, String accountKey) {
     ByteBuffer value = tx.get(new NKey(accountKey)).asReadOnlyByteBuffer();
     var balance = value.getLong();
     // paranoia: check we read it all
@@ -230,7 +258,7 @@ public final class BankingApp {
     return balance;
   }
 
-  private void writeBalance(NamiClientTransaction tx, String accountKey, long balance) {
+  private void writeBalance(ClientTransaction tx, String accountKey, long balance) {
     var byteBuffer = ByteBuffer.allocate(8);
     byteBuffer.putLong(balance);
     byteBuffer.rewind();

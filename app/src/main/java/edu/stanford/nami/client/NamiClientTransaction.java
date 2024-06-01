@@ -17,7 +17,7 @@ public final class NamiClientTransaction implements ClientTransaction {
   private final Map<NKey, ByteString> readValues = new HashMap<>();
   private final Map<NKey, ByteString> writtenValues = new HashMap<>();
 
-  private NamiClientTransaction(NamiClient namiClient, long snapshotTid) {
+  NamiClientTransaction(NamiClient namiClient, long snapshotTid) {
     this.snapshotTid = snapshotTid;
     this.namiClient = namiClient;
   }
