@@ -36,7 +36,7 @@ public class RemoteStore implements AutoCloseable {
   private final Map<String, KVStoreGrpc.KVStoreBlockingStub> peerClients;
   private final Map<String, KVStoreGrpc.KVStoreFutureStub> asyncPeerClients;
   private final List<String> peerNames;
-  private final List<ManagedChannel> peerChannels;
+  private final Map<String, ManagedChannel> peerChannels;
   private final ExecutorService executor;
 
   public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
@@ -46,7 +46,7 @@ public class RemoteStore implements AutoCloseable {
 
     var peerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreBlockingStub>builder();
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
-    var peerChannelsBuilder = ImmutableList.<ManagedChannel>builder();
+    var peerChannelsBuilder = ImmutableMap.<String, ManagedChannel>builder();
     // all clients share the same executor
     executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
@@ -63,7 +63,7 @@ public class RemoteStore implements AutoCloseable {
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       var asyncPeerClient = KVStoreGrpc.newFutureStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
-      peerChannelsBuilder.add(channel);
+      peerChannelsBuilder.put(peerId, channel);
       asyncPeerClientsBuilder.put(peerId, asyncPeerClient);
       log.atFine().log("Opening channel to %s", target);
     }
@@ -144,12 +144,12 @@ public class RemoteStore implements AutoCloseable {
   }
 
   public void shutdown() throws InterruptedException {
-    for (var channel : this.peerChannels) {
+    for (var channel : this.peerChannels.values()) {
       log.atFine().log("Shutting down channel %s", channel);
       channel.shutdown();
     }
     boolean interrupted = false;
-    for (var channel : this.peerChannels) {
+    for (var channel : this.peerChannels.values()) {
       try {
         log.atFine().log("Waiting on channel %s to terminate", channel);
         channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
