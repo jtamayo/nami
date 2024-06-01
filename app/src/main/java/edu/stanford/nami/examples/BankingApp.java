@@ -10,7 +10,7 @@ import edu.stanford.nami.NamiClient;
 import edu.stanford.nami.TransactionResponse;
 import edu.stanford.nami.TransactionStatus;
 import edu.stanford.nami.client.ClientMetrics;
-import edu.stanford.nami.client.ClientTransaction;
+import edu.stanford.nami.client.NamiClientTransaction;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.ClientConfig;
 import edu.stanford.nami.config.Config;
@@ -117,7 +117,7 @@ public final class BankingApp {
   /** Create ACCOUNT accounts with UUIDs as keys, and a balance of zero. */
   private List<String> createAccounts() {
     var accountKeys = new ArrayList<String>();
-    var tx = ClientTransaction.begin(client, Optional.empty());
+    var tx = NamiClientTransaction.begin(client, Optional.empty());
     for (int i = 0; i < ACCOUNTS; i++) {
       var accountKey = UUID.randomUUID().toString();
       // zero out all balances
@@ -134,7 +134,7 @@ public final class BankingApp {
   /** Validate that, in total, all accounts still have zero balance. */
   private void validateZeroNetBalance(List<String> accountKeys) {
     // begin tx so we know all values are consistent
-    var tx = ClientTransaction.begin(client, Optional.of(this.latestTid.get()));
+    var tx = NamiClientTransaction.begin(client, Optional.of(this.latestTid.get()));
     var positiveBalance = 0L;
     var negativeBalance = 0L;
     for (String accountKey : accountKeys) {
@@ -180,7 +180,7 @@ public final class BankingApp {
     private void moveMoney() {
       int numRetries = 0;
       while (numRetries < MAX_RETRIES) {
-        var tx = ClientTransaction.begin(client, Optional.empty());
+        var tx = NamiClientTransaction.begin(client, Optional.empty());
         moveMoneyInTransaction(tx);
         TransactionResponse outcome = tx.commit();
         TransactionStatus status = outcome.getStatus();
@@ -197,7 +197,7 @@ public final class BankingApp {
       }
     }
 
-    private void moveMoneyInTransaction(ClientTransaction tx) {
+    private void moveMoneyInTransaction(NamiClientTransaction tx) {
       var maxIndex = accountKeys.size();
 
       for (int i = 0; i < MOVES_PER_TX; i++) {
@@ -222,7 +222,7 @@ public final class BankingApp {
     }
   }
 
-  private long readBalance(ClientTransaction tx, String accountKey) {
+  private long readBalance(NamiClientTransaction tx, String accountKey) {
     ByteBuffer value = tx.get(new NKey(accountKey)).asReadOnlyByteBuffer();
     var balance = value.getLong();
     // paranoia: check we read it all
@@ -230,7 +230,7 @@ public final class BankingApp {
     return balance;
   }
 
-  private void writeBalance(ClientTransaction tx, String accountKey, long balance) {
+  private void writeBalance(NamiClientTransaction tx, String accountKey, long balance) {
     var byteBuffer = ByteBuffer.allocate(8);
     byteBuffer.putLong(balance);
     byteBuffer.rewind();
