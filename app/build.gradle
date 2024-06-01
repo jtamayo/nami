@@ -106,5 +106,6 @@ def createStartScripts(String mainClassName) {
 }
 
 createStartScripts('edu.stanford.nami.NamiServer')
+createStartScripts('edu.stanford.nami.nativerocksdb.NativeRocksDBServer')
 createStartScripts('edu.stanford.nami.examples.BankingApp')
 createStartScripts('edu.stanford.nami.examples.SimpleTestApp')
