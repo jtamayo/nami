@@ -72,9 +72,7 @@ public class TransactionProcessor {
               .collect(ImmutableSet.toImmutableSet());
       var remoteValues = this.remoteStore.getAsOf(remoteNKeys, previousTransactionTid);
       // first update caching store with _all_ the remote values we just got
-      for (var entry : remoteValues.entrySet()) {
-        this.cachingStore.put(entry.getKey(), entry.getValue());
-      }
+      this.cachingStore.putAll(previousTransactionTid, remoteValues);
 
       // then check tx status
       for (var remoteInTxGet : remoteInTxGets) {
@@ -102,7 +100,7 @@ public class TransactionProcessor {
             return null;
           });
     } else {
-      this.cachingStore.put(nvKey.nKey(), value);
+      this.cachingStore.put(currentTid, nvKey.nKey(), value);
     }
   }
 
