@@ -70,7 +70,7 @@ public class NamiServer {
 
     // Enable triggering snapshot automatically when log size exceeds limit
     RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(properties, true);
-    RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(properties, 2500);
+    RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(properties, 1024L);
 
     // customize snapshot creation gap
     RaftServerConfigKeys.Snapshot.setCreationGap(properties, 1024L);
