@@ -12,11 +12,11 @@ import edu.stanford.nami.Chunks.PeerAllocation;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.PeersConfig.PeerConfig;
+import edu.stanford.nami.utils.GrpcRetries;
 import io.grpc.ConnectivityState;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,12 +79,7 @@ public class RemoteStore implements AutoCloseable {
   }
 
   public ByteString getAsOf(NKey key, long tid) {
-    var peerGrpc = findPeerWithKey(key);
-    log.atFine().log("Getting key %s from peer %s", key, peerGrpc);
-    ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
-    GetRequest request = GetRequest.newBuilder().setKey(protoVKey).build();
-    GetResponse response = peerGrpc.get(request);
-    return response.getValue();
+    return GrpcRetries.withGrpcRetries(() -> tryGetAsOf(key, tid));
   }
 
   public Map<NKey, ByteString> getAsOf(Set<NKey> keys, long tid) {
@@ -92,9 +87,12 @@ public class RemoteStore implements AutoCloseable {
       try {
         return tryGetAsOf(keys, tid);
       } catch (StatusRuntimeException e) {
-        var statusException = (StatusRuntimeException) e.getCause();
-        if (isRetryable(statusException.getStatus())) {
-          // TODO retry
+        if (!GrpcRetries.isRetryable(e.getStatus())) {
+          // not retryable, just propagate up
+          throw e;
+        } else {
+          // just continue in the while loop, which will retry with a different server
+          log.atWarning().log("Error %s while getting keys, retrying...", e.getStatus());
         }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
@@ -140,6 +138,15 @@ public class RemoteStore implements AutoCloseable {
       throw new InterruptedException();
     }
     log.atFine().log("Shut down RemoteStore");
+  }
+
+  private ByteString tryGetAsOf(NKey key, long tid) {
+    var peerGrpc = findPeerWithKey(key);
+    log.atFine().log("Getting key %s from peer %s", key, peerGrpc);
+    ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
+    GetRequest request = GetRequest.newBuilder().setKey(protoVKey).build();
+    GetResponse response = peerGrpc.get(request);
+    return response.getValue();
   }
 
   private Map<NKey, ByteString> tryGetAsOf(Set<NKey> keys, long tid) throws InterruptedException {
@@ -264,9 +271,5 @@ public class RemoteStore implements AutoCloseable {
       default:
         throw new IllegalStateException("Unknown channel state " + channelState);
     }
-  }
-
-  private static boolean isRetryable(Status status) {
-    return true;
   }
 }
