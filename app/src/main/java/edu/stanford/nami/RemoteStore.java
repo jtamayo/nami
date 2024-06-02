@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.flogger.Flogger;
 
@@ -35,6 +37,7 @@ public class RemoteStore implements AutoCloseable {
   private final Map<String, KVStoreGrpc.KVStoreFutureStub> asyncPeerClients;
   private final List<String> peerNames;
   private final List<ManagedChannel> peerChannels;
+  private final ExecutorService executor;
 
   public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
     Preconditions.checkNotNull(selfId);
@@ -44,6 +47,8 @@ public class RemoteStore implements AutoCloseable {
     var peerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreBlockingStub>builder();
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
     var peerChannelsBuilder = ImmutableList.<ManagedChannel>builder();
+    // all clients share the same executor
+    executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
@@ -52,7 +57,9 @@ public class RemoteStore implements AutoCloseable {
         continue;
       }
       var target = peerConfig.getKvAddress();
-      var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
+      var channelBuilder = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create());
+      // channelBuilder.executor(executor);
+      var channel = channelBuilder.build();
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       var asyncPeerClient = KVStoreGrpc.newFutureStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
