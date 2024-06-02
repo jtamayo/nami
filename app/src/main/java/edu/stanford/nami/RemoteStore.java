@@ -58,7 +58,7 @@ public class RemoteStore implements AutoCloseable {
       }
       var target = peerConfig.getKvAddress();
       var channelBuilder = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create());
-      // channelBuilder.executor(executor);
+      channelBuilder.executor(executor);
       var channel = channelBuilder.build();
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       var asyncPeerClient = KVStoreGrpc.newFutureStub(channel);
