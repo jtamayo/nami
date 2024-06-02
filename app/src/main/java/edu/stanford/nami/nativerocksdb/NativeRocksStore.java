@@ -5,12 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
-import org.rocksdb.OptimisticTransactionDB;
-import org.rocksdb.ReadOptions;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.Status;
-import org.rocksdb.Transaction;
-import org.rocksdb.WriteOptions;
+import org.rocksdb.*;
 
 @RequiredArgsConstructor
 @Flogger
@@ -18,8 +13,11 @@ public class NativeRocksStore {
   public static final long GLOBAL_VERSION = 1;
 
   private final OptimisticTransactionDB db;
+  private final String snapshotBaseDir;
+  private final long snapshotAutoThreshold;
 
   private final AtomicLong nextTid = new AtomicLong();
+  private Long prevSnapshotTid = 0L;
 
   private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
@@ -63,6 +61,7 @@ public class NativeRocksStore {
           try {
             transaction.commit();
             // everything went well
+            tryCheckpoint(tid);
             return true;
           } catch (RocksDBException e) {
             var statusCode = e.getStatus().getCode();
@@ -96,5 +95,22 @@ public class NativeRocksStore {
   @FunctionalInterface
   public static interface TransactionalRocksDBOperation<T> {
     T execute(Transaction transaction) throws RocksDBException;
+  }
+
+  private synchronized void tryCheckpoint(long tid) {
+    if (tid - prevSnapshotTid < snapshotAutoThreshold) {
+      return;
+    }
+    Checkpoint checkpoint = Checkpoint.create(db);
+    String snapshotDir = snapshotBaseDir + "_" + tid;
+    try {
+      checkpoint.createCheckpoint(snapshotDir);
+      prevSnapshotTid = tid;
+    } catch (Exception ex) {
+      // TODO clean up snapshotDir?
+      ex.printStackTrace();
+      log.atWarning().log(
+          "writeSnapshot meet exception, dir={}, msg={}", snapshotDir, ex.getMessage());
+    }
   }
 }
