@@ -1,6 +1,7 @@
 package edu.stanford.nami.nativerocksdb;
 
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.UniformReservoir;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.*;
 import edu.stanford.nami.client.ClientMetrics;
@@ -24,10 +25,19 @@ public class NativeRocksDBClient {
     Timer commit;
 
     public static void recreateTimers(String prefix) {
-      begin = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.begin");
-      getForUpdate = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.getForUpdate");
-      put = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.put");
-      commit = ClientMetrics.registry.timer(prefix + ".native-rocks-db.commit");
+      begin =
+          ClientMetrics.registry.timer(
+              prefix + ".native-rocks-db-client.begin", () -> new Timer(new UniformReservoir()));
+      getForUpdate =
+          ClientMetrics.registry.timer(
+              prefix + ".native-rocks-db-client.getForUpdate",
+              () -> new Timer(new UniformReservoir()));
+      put =
+          ClientMetrics.registry.timer(
+              prefix + ".native-rocks-db-client.put", () -> new Timer(new UniformReservoir()));
+      commit =
+          ClientMetrics.registry.timer(
+              prefix + ".native-rocks-db.commit", () -> new Timer(new UniformReservoir()));
     }
   }
 
