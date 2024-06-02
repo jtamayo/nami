@@ -90,17 +90,35 @@ public class TransactionProcessor {
     return true;
   }
 
-  private void processInTransactionPut(long currentTid, InTransactionPut inTransactionPut) {
-    NVKey nvKey = new NVKey(currentTid, inTransactionPut.getKey());
-    com.google.protobuf.ByteString value = inTransactionPut.getValue();
-    if (this.kvStore.hasKeyInAllocation(new NKey(inTransactionPut.getKey()))) {
+  private void processInTransactionPuts(long currentTid, List<InTransactionPut> inTransactionPuts) {
+    var relevantPuts = new ArrayList<InTransactionPut>();
+    var irrelevantPuts = new ArrayList<InTransactionPut>();
+    for (var put : inTransactionPuts) {
+      NVKey nvKey = new NVKey(currentTid, put.getKey());
+      if (this.kvStore.hasKeyInAllocation(nvKey.nKey())) {
+        relevantPuts.add(put);
+      } else {
+        irrelevantPuts.add(put);
+      }
+    }
+    if (!relevantPuts.isEmpty()) {
       withRocksDBRetries(
           () -> {
-            this.kvStore.put(nvKey, value.toByteArray());
+            kvStore.putInBatch(
+                operation -> {
+                  for (var put : relevantPuts) {
+                    NVKey nvKey = new NVKey(currentTid, put.getKey());
+                    var value = put.getValue();
+                    operation.put(nvKey, value.toByteArray());
+                  }
+                });
             return null;
           });
-    } else {
-      this.cachingStore.put(currentTid, nvKey.nKey(), value);
+    }
+
+    for (var put : irrelevantPuts) {
+      NVKey nvKey = new NVKey(currentTid, put.getKey());
+      this.cachingStore.put(currentTid, nvKey.nKey(), put.getValue());
     }
   }
 
@@ -148,9 +166,7 @@ public class TransactionProcessor {
     // process transactions for local store
     switch (transactionStatus) {
       case COMMITTED:
-        for (InTransactionPut inTransactionPut : request.getPutsList()) {
-          this.processInTransactionPut(assignedTid, inTransactionPut);
-        }
+        this.processInTransactionPuts(assignedTid, request.getPutsList());
         break;
       case CONFLICT_ABORTED:
         // no-op

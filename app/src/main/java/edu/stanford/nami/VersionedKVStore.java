@@ -1,11 +1,14 @@
 package edu.stanford.nami;
 
 import com.google.common.base.Preconditions;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
 import org.rocksdb.FlushOptions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
+import org.rocksdb.WriteBatch;
+import org.rocksdb.WriteOptions;
 
 /**
  * A versioned key-value store backed by a RocksDB database. Every key is versioned by a tid, which
@@ -46,6 +49,15 @@ public class VersionedKVStore {
     Preconditions.checkArgument(
         this.hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
     db.put(key.toBytes(), value);
+  }
+
+  public void putInBatch(BatchOperation operation) throws RocksDBException {
+    WriteBatch writeBatch = new WriteBatch();
+    var sink = new BatchSink(writeBatch);
+    operation.execute(sink);
+    try (var options = new WriteOptions()) {
+      db.write(options, writeBatch);
+    }
   }
 
   public void updateLatestTid(long newTid) {
@@ -122,6 +134,23 @@ public class VersionedKVStore {
 
   public synchronized void resetLatestTid(long tid) {
     this.tidSynchronizer.resetLatestTid(tid);
+  }
+
+  @FunctionalInterface
+  public static interface BatchOperation {
+    void execute(BatchSink sink) throws RocksDBException;
+  }
+
+  @RequiredArgsConstructor
+  public class BatchSink {
+    private final WriteBatch batch;
+
+    public void put(NVKey key, byte[] value) throws RocksDBException {
+      log.atFine().log("Storing NVKey " + key);
+      Preconditions.checkArgument(
+          hasKeyInAllocation(key.nKey()), "tid is not in this store's allocation");
+      batch.put(key.toBytes(), value);
+    }
   }
 
   private static final class TidSynchronizer {
