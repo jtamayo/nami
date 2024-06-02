@@ -7,7 +7,6 @@ import java.util.Map;
 /** Stores recent reads/writes that were performed on remote shards */
 public class CachingStore {
   private long oldest_tid;
-  private long newest_tid;
   private static final int TRANSACTIONS_CAPACITY = 100;
 
   HashMap<Long, HashMap<NKey, ByteString>> cache = new HashMap<>(TRANSACTIONS_CAPACITY);
@@ -16,7 +15,6 @@ public class CachingStore {
 
   public CachingStore() {
     oldest_tid = Long.MAX_VALUE;
-    newest_tid = 0L;
   }
 
   public ByteString get(NKey key) {
@@ -71,9 +69,6 @@ public class CachingStore {
     if (tid < oldest_tid) {
       oldest_tid = tid;
     }
-    if (tid > newest_tid) {
-      newest_tid = tid;
-    }
     if (shouldEvict()) {
       evictOldest();
     }
@@ -87,9 +82,6 @@ public class CachingStore {
     cache.get(tid).put(key, value);
     if (tid < oldest_tid) {
       oldest_tid = tid;
-    }
-    if (tid > newest_tid) {
-      newest_tid = tid;
     }
     if (shouldEvict()) {
       evictOldest();
