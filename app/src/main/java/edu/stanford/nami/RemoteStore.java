@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.flogger.Flogger;
 
@@ -51,7 +51,8 @@ public class RemoteStore implements AutoCloseable {
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
     var peerChannelsBuilder = ImmutableMap.<String, ManagedChannel>builder();
     // all clients share the same executor
-    ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    ExecutorService executor =
+        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
