@@ -22,10 +22,11 @@ public class NativeRocksDBServer {
   @Getter private final int port;
   private final Server server;
 
-  public NativeRocksDBServer(int port, OptimisticTransactionDB db) {
+  public NativeRocksDBServer(int port, OptimisticTransactionDB db, String snapshotDir) {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
-    var store = new NativeRocksStore(db);
+    // 2500 to keep consistent with AutoTriggerThreshold for Raft
+    var store = new NativeRocksStore(db, snapshotDir, 2500);
     server = serverBuilder.addService(new NativeRocksDBServer.NativeRocksDBService(store)).build();
   }
 
@@ -73,12 +74,13 @@ public class NativeRocksDBServer {
       dataDir.mkdirs();
     }
     var rocksDbPath = dataDir.toPath().resolve("rocksdb");
+    var snapshotDirPath = dataDir.toPath().resolve("snapshot");
     log.atInfo().log("RocksDB data will be stored in %s", rocksDbPath.toAbsolutePath());
     RocksDB.loadLibrary();
     try (final Options options = new Options()) {
       options.setCreateIfMissing(true);
       try (var db = OptimisticTransactionDB.open(options, rocksDbPath.toString())) {
-        var server = new NativeRocksDBServer(port, db);
+        var server = new NativeRocksDBServer(port, db, snapshotDirPath.toString());
         server.start();
         server.blockUntilShutdown();
       }
