@@ -3,6 +3,7 @@ package edu.stanford.nami;
 import static edu.stanford.nami.ProtoUtils.convertToRatisByteString;
 
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.UniformReservoir;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import edu.stanford.nami.client.ClientMetrics;
@@ -31,9 +32,15 @@ public final class NamiClient implements AutoCloseable {
     Timer commit;
 
     public static void recreateTimers(String prefix) {
-      remoteGet = ClientMetrics.registry.timer(prefix + ".nami-client.remoteGet");
-      getRecentTid = ClientMetrics.registry.timer(prefix + ".nami-client.getRecentTid");
-      commit = ClientMetrics.registry.timer(prefix + ".nami-client.commit");
+      remoteGet =
+          ClientMetrics.registry.timer(
+              prefix + ".nami-client.remoteGet", () -> new Timer(new UniformReservoir()));
+      getRecentTid =
+          ClientMetrics.registry.timer(
+              prefix + ".nami-client.getRecentTid", () -> new Timer(new UniformReservoir()));
+      commit =
+          ClientMetrics.registry.timer(
+              prefix + ".nami-client.commit", () -> new Timer(new UniformReservoir()));
     }
   }
 

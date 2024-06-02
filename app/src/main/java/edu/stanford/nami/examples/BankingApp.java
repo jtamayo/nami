@@ -2,6 +2,7 @@ package edu.stanford.nami.examples;
 
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.UniformReservoir;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
@@ -37,8 +38,12 @@ import lombok.extern.flogger.Flogger;
 public final class BankingApp {
   @UtilityClass
   private static final class Metrics {
-    Histogram accountSize = ClientMetrics.registry.histogram("banking-app.accountSize");
-    Timer moveMoney = ClientMetrics.registry.timer("banking-app.moveMoney");
+    Histogram accountSize =
+        ClientMetrics.registry.histogram(
+            "banking-app.accountSize", () -> new Histogram(new UniformReservoir()));
+    Timer moveMoney =
+        ClientMetrics.registry.timer(
+            "banking-app.moveMoney", () -> new Timer(new UniformReservoir()));
   }
 
   public static final int THREADS = 10;
