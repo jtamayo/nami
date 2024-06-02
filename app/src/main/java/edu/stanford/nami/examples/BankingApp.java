@@ -1,6 +1,7 @@
 package edu.stanford.nami.examples;
 
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
@@ -37,6 +38,7 @@ public final class BankingApp {
   @UtilityClass
   private static final class Metrics {
     Histogram accountSize = ClientMetrics.registry.histogram("banking-app.accountSize");
+    Timer moveMoney = ClientMetrics.registry.timer("banking-app.moveMoney");
   }
 
   public static final int THREADS = 10;
@@ -235,7 +237,9 @@ public final class BankingApp {
       log.atInfo().log("Starting worker " + workerIndex);
       for (int i = 0; i < TX_PER_THREAD; i++) {
         log.atInfo().log("Worker " + workerIndex + " moving money");
-        moveMoney();
+        try (var timer = Metrics.moveMoney.time()) {
+          moveMoney();
+        }
       }
       log.atInfo().log("Worker " + workerIndex + " completed");
     }
