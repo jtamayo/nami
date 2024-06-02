@@ -12,9 +12,12 @@ import edu.stanford.nami.Chunks.PeerAllocation;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.config.PeersConfig.PeerConfig;
+import edu.stanford.nami.utils.GrpcRetries;
+import io.grpc.ConnectivityState;
 import io.grpc.Grpc;
 import io.grpc.InsecureChannelCredentials;
 import io.grpc.ManagedChannel;
+import io.grpc.StatusRuntimeException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -36,8 +40,7 @@ public class RemoteStore implements AutoCloseable {
   private final Map<String, KVStoreGrpc.KVStoreBlockingStub> peerClients;
   private final Map<String, KVStoreGrpc.KVStoreFutureStub> asyncPeerClients;
   private final List<String> peerNames;
-  private final List<ManagedChannel> peerChannels;
-  private final ExecutorService executor;
+  private final Map<String, ManagedChannel> peerChannels;
 
   public RemoteStore(String selfId, PeersConfig peersConfig, ChunksConfig chunksConfig) {
     Preconditions.checkNotNull(selfId);
@@ -46,9 +49,10 @@ public class RemoteStore implements AutoCloseable {
 
     var peerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreBlockingStub>builder();
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
-    var peerChannelsBuilder = ImmutableList.<ManagedChannel>builder();
+    var peerChannelsBuilder = ImmutableMap.<String, ManagedChannel>builder();
     // all clients share the same executor
-    executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    ExecutorService executor =
+        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
@@ -63,7 +67,7 @@ public class RemoteStore implements AutoCloseable {
       var peerClient = KVStoreGrpc.newBlockingStub(channel);
       var asyncPeerClient = KVStoreGrpc.newFutureStub(channel);
       peerClientsBuilder.put(peerId, peerClient);
-      peerChannelsBuilder.add(channel);
+      peerChannelsBuilder.put(peerId, channel);
       asyncPeerClientsBuilder.put(peerId, asyncPeerClient);
       log.atFine().log("Opening channel to %s", target);
     }
@@ -76,6 +80,68 @@ public class RemoteStore implements AutoCloseable {
   }
 
   public ByteString getAsOf(NKey key, long tid) {
+    return GrpcRetries.withGrpcRetries(() -> tryGetAsOf(key, tid));
+  }
+
+  public Map<NKey, ByteString> getAsOf(Set<NKey> keys, long tid) {
+    while (true) {
+      try {
+        return tryGetAsOf(keys, tid);
+      } catch (StatusRuntimeException e) {
+        if (!GrpcRetries.isRetryable(e.getStatus())) {
+          // not retryable, just propagate up
+          throw e;
+        } else {
+          // just continue in the while loop, which will retry with a different server
+          log.atWarning().log("Error %s while getting keys, retrying...", e.getStatus());
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        log.atSevere().log(
+            "Interrupted while trying to getAsOf for keys %s and tid %s", keys, tid, e);
+        throw new RuntimeException(e);
+      }
+    }
+  }
+
+  /**
+   * Pick a peer at random out of all the known peers. Good for balancing load when any one peer
+   * could answer a query.
+   */
+  public KVStoreGrpc.KVStoreBlockingStub getArbitraryPeer() {
+    var peerIndex = new Random().nextInt(peerNames.size());
+    return peerClients.get(peerNames.get(peerIndex));
+  }
+
+  @Override
+  public void close() throws Exception {
+    // Not really sure is worth separating these two, but I'll just follow whatever
+    // ratis does
+    shutdown();
+  }
+
+  public void shutdown() throws InterruptedException {
+    for (var channel : this.peerChannels.values()) {
+      log.atFine().log("Shutting down channel %s", channel);
+      channel.shutdown();
+    }
+    boolean interrupted = false;
+    for (var channel : this.peerChannels.values()) {
+      try {
+        log.atFine().log("Waiting on channel %s to terminate", channel);
+        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+        interrupted = true;
+      }
+    }
+    if (interrupted) {
+      throw new InterruptedException();
+    }
+    log.atFine().log("Shut down RemoteStore");
+  }
+
+  private ByteString tryGetAsOf(NKey key, long tid) {
     var peerGrpc = findPeerWithKey(key);
     log.atFine().log("Getting key %s from peer %s", key, peerGrpc);
     ProtoVKey protoVKey = ProtoVKey.newBuilder().setTid(tid).setKey(key.key()).build();
@@ -84,7 +150,7 @@ public class RemoteStore implements AutoCloseable {
     return response.getValue();
   }
 
-  public Map<NKey, ByteString> getAsOf(Set<NKey> keys, long tid) {
+  private Map<NKey, ByteString> tryGetAsOf(Set<NKey> keys, long tid) throws InterruptedException {
     var peersToKeys = findPeersWithKeys(keys);
     // copy the peers to a list, so we can keep track of them in order
     // peersToKeys is an ArrayListMultimap, so it'll keep each key in order too
@@ -119,49 +185,14 @@ public class RemoteStore implements AutoCloseable {
         }
       }
       return result;
-    } catch (Exception e) {
-      // TODO need to distinguish between transient/permanent errors, and retry with different
-      // backends
-      log.atSevere().log("Failed to getAsOf for keys %s and tid %s", keys, tid, e);
+    } catch (ExecutionException e) {
+      // rethrow any gRPC exceptions as they are, or just wrap anything else
+      var cause = e.getCause();
+      if (cause instanceof StatusRuntimeException) {
+        throw (StatusRuntimeException) cause;
+      }
       throw new RuntimeException(e);
     }
-  }
-
-  /**
-   * Pick a peer at random out of all the known peers. Good for balancing load when any one peer
-   * could answer a query.
-   */
-  public KVStoreGrpc.KVStoreBlockingStub getArbitraryPeer() {
-    var peerIndex = new Random().nextInt(peerNames.size());
-    return peerClients.get(peerNames.get(peerIndex));
-  }
-
-  @Override
-  public void close() throws Exception {
-    // Not really sure is worth separating these two, but I'll just follow whatever
-    // ratis does
-    shutdown();
-  }
-
-  public void shutdown() throws InterruptedException {
-    for (var channel : this.peerChannels) {
-      log.atFine().log("Shutting down channel %s", channel);
-      channel.shutdown();
-    }
-    boolean interrupted = false;
-    for (var channel : this.peerChannels) {
-      try {
-        log.atFine().log("Waiting on channel %s to terminate", channel);
-        channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-        interrupted = true;
-      }
-    }
-    if (interrupted) {
-      throw new InterruptedException();
-    }
-    log.atFine().log("Shut down RemoteStore");
   }
 
   private KVStoreGrpc.KVStoreBlockingStub findPeerWithKey(NKey key) {
@@ -197,8 +228,14 @@ public class RemoteStore implements AutoCloseable {
     var pendingKeys = new HashSet<>(keys);
     var peerToKeys = ArrayListMultimap.<String, NKey>create(keys.size() / 2, 2);
     for (var allocation : shuffledPeerAllocations) {
-      if (allocation.peerId().equals(selfId)) {
+      String peerId = allocation.peerId();
+      if (peerId.equals(selfId)) {
         // skip yourself
+        continue;
+      }
+      var peerChannel = peerChannels.get(allocation.peerId());
+      if (!isUp(peerChannel)) {
+        // don't try to connect to failed channels
         continue;
       }
       for (var pendingKeysIterator = pendingKeys.iterator(); pendingKeysIterator.hasNext(); ) {
@@ -218,5 +255,22 @@ public class RemoteStore implements AutoCloseable {
     Preconditions.checkState(
         pendingKeys.isEmpty(), "Some keys don't have a matching allocation: " + pendingKeys);
     return peerToKeys;
+  }
+
+  private static boolean isUp(ManagedChannel channel) {
+    ConnectivityState channelState = channel.getState(false);
+    switch (channelState) {
+      case CONNECTING:
+      case IDLE:
+      case READY:
+        // should be ok to attempt to send data
+        return true;
+      case SHUTDOWN:
+      case TRANSIENT_FAILURE:
+        // remote server is down, or local client is terminating connections
+        return false;
+      default:
+        throw new IllegalStateException("Unknown channel state " + channelState);
+    }
   }
 }

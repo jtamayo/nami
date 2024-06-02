@@ -9,6 +9,7 @@ import edu.stanford.nami.client.ClientMetrics;
 import edu.stanford.nami.config.ChunksConfig;
 import edu.stanford.nami.config.PeersConfig;
 import edu.stanford.nami.utils.AutoCloseables;
+import edu.stanford.nami.utils.GrpcRetries;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -67,11 +68,14 @@ public final class NamiClient implements AutoCloseable {
   public long getRecentTid() {
     var timer = Timers.getRecentTid.time();
     try {
-      var request = GetRecentTidRequest.newBuilder().build();
-      var response = remoteStore.getArbitraryPeer().getRecentTid(request);
-      var recentTid = response.getTid();
-      log.atFine().log("Recent TID: %s", recentTid);
-      return response.getTid();
+      return GrpcRetries.withGrpcRetries(
+          () -> {
+            var request = GetRecentTidRequest.newBuilder().build();
+            var response = remoteStore.getArbitraryPeer().getRecentTid(request);
+            var recentTid = response.getTid();
+            log.atFine().log("Recent TID: %s", recentTid);
+            return response.getTid();
+          });
     } finally {
       timer.stop();
     }
