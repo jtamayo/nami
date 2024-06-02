@@ -24,10 +24,10 @@ public class NativeRocksDBClient {
     Timer commit;
 
     public static void recreateTimers(String prefix) {
-      begin = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.begin");
-      getForUpdate = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.getForUpdate");
-      put = ClientMetrics.registry.timer(prefix + "native-rocks-db-client.put");
-      commit = ClientMetrics.registry.timer(prefix + "native-rocks-db.commit");
+      begin = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.begin");
+      getForUpdate = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.getForUpdate");
+      put = ClientMetrics.registry.timer(prefix + ".native-rocks-db-client.put");
+      commit = ClientMetrics.registry.timer(prefix + ".native-rocks-db.commit");
     }
   }
 
