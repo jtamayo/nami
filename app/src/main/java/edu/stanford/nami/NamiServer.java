@@ -57,7 +57,8 @@ public class NamiServer {
         new TransactionProcessor(kvStore, remoteStore, cachingStore);
     stateMachine = new KVStoreStateMachine(transactionProcessor);
     // set up gRPC server with its own fixed thread pool
-    executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    int availableProcessors = Runtime.getRuntime().availableProcessors();
+    executor = Executors.newFixedThreadPool(availableProcessors);
     serverBuilder.executor(executor);
     server =
         serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
@@ -77,6 +78,8 @@ public class NamiServer {
 
     // Disable installing snapshot in a new follower
     RaftServerConfigKeys.Log.Appender.setInstallSnapshotEnabled(properties, true);
+
+    RaftServerConfigKeys.ThreadPool.setServerSize(properties, availableProcessors);
 
     // set the port (different for each peer) in RaftProperty object
     final int raftPeerPort = peerConfig.getRaftPort();
