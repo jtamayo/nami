@@ -25,8 +25,8 @@ public class NativeRocksDBServer {
   public NativeRocksDBServer(int port, OptimisticTransactionDB db, String snapshotDir) {
     this.port = port;
     var serverBuilder = Grpc.newServerBuilderForPort(port, InsecureServerCredentials.create());
-    // 2500 to keep consistent with AutoTriggerThreshold for Raft
-    var store = new NativeRocksStore(db, snapshotDir, 2500);
+    // 1024L to keep consistent with AutoTriggerThreshold for Raft
+    var store = new NativeRocksStore(db, snapshotDir, 1024L);
     server = serverBuilder.addService(new NativeRocksDBServer.NativeRocksDBService(store)).build();
   }
 
