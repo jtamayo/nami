@@ -7,7 +7,7 @@ import java.util.Map;
 /** Stores recent reads/writes that were performed on remote shards */
 public class CachingStore {
   private long oldest_tid;
-  private static final int TRANSACTIONS_CAPACITY = 100;
+  private static final int TRANSACTIONS_CAPACITY = 10000;
 
   HashMap<Long, HashMap<NKey, ByteString>> cache = new HashMap<>(TRANSACTIONS_CAPACITY);
   // Map to the most recent tid that processed this key - no capacity limit?
