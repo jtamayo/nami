@@ -58,6 +58,7 @@ public class NamiServer {
     stateMachine = new KVStoreStateMachine(transactionProcessor);
     // set up gRPC server with its own fixed thread pool
     int availableProcessors = Runtime.getRuntime().availableProcessors();
+    System.out.println("AVAILABOE PROCESSORS IS " + availableProcessors);
     executor = Executors.newFixedThreadPool(availableProcessors);
     serverBuilder.executor(executor);
     server =
