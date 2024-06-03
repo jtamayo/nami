@@ -51,8 +51,8 @@ public class RemoteStore implements AutoCloseable {
     var asyncPeerClientsBuilder = ImmutableMap.<String, KVStoreGrpc.KVStoreFutureStub>builder();
     var peerChannelsBuilder = ImmutableMap.<String, ManagedChannel>builder();
     // all clients share the same executor
-    ExecutorService executor =
-        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+//        Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     // first go through all peers, and as long as it's not "self", create a KVStoreClient
     for (PeerConfig peerConfig : peersConfig.getPeers()) {
       var peerId = peerConfig.getPeerId();
