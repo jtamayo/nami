@@ -61,7 +61,7 @@ public class NamiServer {
     executor = Executors.newFixedThreadPool(availableProcessors);
     serverBuilder.executor(executor);
     server =
-        serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
+        serverBuilder.addService(new KVStoreService(kvStore)).build();
 
     // create a property object
     final RaftProperties properties = new RaftProperties();
@@ -228,8 +228,6 @@ public class NamiServer {
   @RequiredArgsConstructor
   private static class KVStoreService extends KVStoreGrpc.KVStoreImplBase {
     private final VersionedKVStore kvStore;
-    private final RemoteStore remoteStore;
-    private final KVStoreStateMachine stateMachine;
 
     @Override
     public void get(GetRequest request, StreamObserver<GetResponse> responseObserver) {
@@ -284,12 +282,14 @@ public class NamiServer {
     }
 
     private ByteString get(ProtoVKey protoVKey) throws InterruptedException, RocksDBException {
+      System.out.println("Got get request for  to get value from store for " + protoVKey.getTid());
       NKey nKey = new NKey(protoVKey.getKey());
       if (this.kvStore.hasKeyInAllocation(nKey)) {
         var tid = protoVKey.getTid();
 	System.out.println("Waiting to get value from store for " + tid);
         this.kvStore.waitUtilTid(tid, 5000);
         byte[] value = this.kvStore.getAsOf(nKey, tid);
+
         Preconditions.checkNotNull(value);
 	System.out.println("getting value from store for " + tid);
         return ByteString.copyFrom(value);
