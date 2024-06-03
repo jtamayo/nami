@@ -46,10 +46,10 @@ public final class BankingApp {
             "banking-app.moveMoney", () -> new Timer(new UniformReservoir()));
   }
 
-  public static final int THREADS = 10;
-  public static final int ACCOUNTS = 10000;
-  public static final int TX_PER_THREAD = 500;
-  public static final int MOVES_PER_TX = 10;
+  public static final int THREADS = 30;
+  public static final int ACCOUNTS = 30000;
+  public static final int TX_PER_THREAD = 400;
+  public static final int MOVES_PER_TX = 5;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
   public static final int GARBAGE_LENGTH = 1000;
