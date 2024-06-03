@@ -60,7 +60,7 @@ public class NamiServer {
     int availableProcessors = Runtime.getRuntime().availableProcessors();
     System.out.println("AVAILABOE PROCESSORS IS " + availableProcessors);
     executor = Executors.newFixedThreadPool(availableProcessors);
-    serverBuilder.executor(executor);
+//    serverBuilder.executor(executor);
     server =
         serverBuilder.addService(new KVStoreService(kvStore)).build();
 
