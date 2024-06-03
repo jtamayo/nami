@@ -87,7 +87,9 @@ public class RemoteStore implements AutoCloseable {
     while (true) {
       try {
 	System.out.println("Trying to remote get as of batch " + tid);
-        return tryGetAsOf(keys, tid);
+        var result = tryGetAsOf(keys, tid);
+        System.out.println("GOT RESULT FOR remote get as of batch " + tid);
+        return result;
       } catch (StatusRuntimeException e) {
         if (!GrpcRetries.isRetryable(e.getStatus())) {
           // not retryable, just propagate up
