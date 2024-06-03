@@ -167,12 +167,14 @@ public class RemoteStore implements AutoCloseable {
         getBatchRequestBuilder.addKeys(protoVKey);
       }
       var asyncPeerClient = asyncPeerClients.get(peer);
+      System.out.println("!getting batch from peer " + peer + " for tid " + tid);
       var response = asyncPeerClient.getBatch(getBatchRequestBuilder.build());
       responseFutures.add(response);
     }
     var allResponsesFuture = Futures.allAsList(responseFutures);
     try {
       var responses = allResponsesFuture.get();
+      System.out.println("!!got ALL responses from batch for tid " + tid);
       // sanity check: same number of results as requests
       Preconditions.checkState(responses.size() == orderedPeers.size());
       var result = new HashMap<NKey, ByteString>(keys.size());
