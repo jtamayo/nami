@@ -1,5 +1,6 @@
 package edu.stanford.nami.examples;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.UniformReservoir;
@@ -44,6 +45,7 @@ public final class BankingApp {
     Timer moveMoney =
         ClientMetrics.registry.timer(
             "banking-app.moveMoney", () -> new Timer(new UniformReservoir()));
+    Counter numConflicts = ClientMetrics.registry.counter("banking-app.conflicts");
   }
 
   public static final int THREADS = 30;
@@ -265,6 +267,7 @@ public final class BankingApp {
         }
         log.atInfo().log(
             "Worker %s encountered a conflict, attempt %s, retrying...", workerIndex, numRetries);
+        Metrics.numConflicts.inc();
         numRetries++;
       }
     }
