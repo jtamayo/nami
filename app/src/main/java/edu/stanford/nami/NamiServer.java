@@ -287,9 +287,11 @@ public class NamiServer {
       NKey nKey = new NKey(protoVKey.getKey());
       if (this.kvStore.hasKeyInAllocation(nKey)) {
         var tid = protoVKey.getTid();
+	System.out.println("Waiting to get value from store for " + tid);
         this.kvStore.waitUtilTid(tid, 5000);
         byte[] value = this.kvStore.getAsOf(nKey, tid);
         Preconditions.checkNotNull(value);
+	System.out.println("getting value from store for " + tid);
         return ByteString.copyFrom(value);
       } else {
         log.atWarning().log(

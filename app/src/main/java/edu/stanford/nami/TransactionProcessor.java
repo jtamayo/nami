@@ -130,6 +130,7 @@ public class TransactionProcessor {
   public TransactionStatus processTransaction(
       TransactionRequest request, long assignedTid, boolean isLeader) {
     log.atFine().log("Processing transaction with assignedTid " + assignedTid + ", tx: " + request);
+    System.out.println("Processing transaction with assignedTid " + assignedTid);
     TransactionStatus transactionStatus;
     // Change this if we ever decide to cache non-local transactions on followers
     if (isLeader || hasLocalWrites(request)) {
@@ -179,6 +180,7 @@ public class TransactionProcessor {
         throw new IllegalArgumentException("Unknown transaction status " + transactionStatus);
     }
 
+    System.out.println("Done processing transaction at " + assignedTid);
     return transactionStatus;
   }
 

@@ -95,6 +95,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
   public TransactionContext startTransaction(RaftClientRequest request)
       throws InvalidProtocolBufferException {
     try {
+      System.out.println("Starting transaction");
       log.atFine().log("Starting transaction");
       final ByteString content = request.getMessage().getContent();
       final com.google.protobuf.ByteString googleContent = convertToGoogleByteString(content);
@@ -137,6 +138,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     TransactionStatus status =
         this.transactionProcessor.processTransaction(request, currentTid, isLeader);
     ByteString byteString = constructTransactionResponse(status, currentTid);
+    System.out.println("finished processing trasaction at " + currentTid);
     return Message.valueOf(byteString);
   }
 
@@ -166,6 +168,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
     // So work around it by adding one to derive the tid :/
     long currentTid = logEntryIndex + 1;
     Message message;
+    System.out.println("Applying transaction at " + currentTid);
     switch (request.getRequestCase()) {
       case TRANSACTION:
         message = processTransaction(currentTid, request.getTransaction(), isLeader);
@@ -176,6 +179,7 @@ public class KVStoreStateMachine extends BaseStateMachine {
             getId() + ": Unexpected request case " + request.getRequestCase());
     }
 
+    System.out.println("finished processing trasaction at " + currentTid);
     updateLastAppliedTermIndex(entry.getTerm(), logEntryIndex);
     // Update the latest tid after the last applied term is applied
     this.transactionProcessor.getKvStore().updateLatestTid(currentTid);

@@ -63,6 +63,7 @@ public class VersionedKVStore {
   public void updateLatestTid(long newTid) {
     // TODO this is wrong: we'll update tid before all values have been updated
     // we need to move all puts to this store and apply them in a rocks transaction
+    System.out.println("Updating latest tid to " + newTid);
     tidSynchronizer.updateLatestTid(newTid);
   }
 
@@ -180,6 +181,7 @@ public class VersionedKVStore {
     /** Waits until this synchronizer has reached or passed the provided tid. */
     public synchronized void waitUtilTid(long tid, long timeoutMillis) throws InterruptedException {
       while (latestTid < tid) {
+	System.out.println("Waiting to see tid " + tid + ", latestTid is " + latestTid);
         log.atFine().log("Waiting to see tid " + tid + ", latestTid is " + latestTid);
         // TODO this is the wrong time to wait, I need to subtract the time I've waited already
         this.wait(timeoutMillis);

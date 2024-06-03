@@ -86,6 +86,7 @@ public class RemoteStore implements AutoCloseable {
   public Map<NKey, ByteString> getAsOf(Set<NKey> keys, long tid) {
     while (true) {
       try {
+	System.out.println("Trying to remote get as of batch " + tid);
         return tryGetAsOf(keys, tid);
       } catch (StatusRuntimeException e) {
         if (!GrpcRetries.isRetryable(e.getStatus())) {

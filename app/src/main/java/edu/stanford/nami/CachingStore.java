@@ -28,6 +28,7 @@ public class CachingStore {
 
   private void evictOldest() {
     while (!cache.containsKey(oldest_tid)) {
+	     System.out.println("FUCL");
       oldest_tid++;
     }
     HashMap<NKey, ByteString> writtenValues = cache.get(oldest_tid);
@@ -37,6 +38,7 @@ public class CachingStore {
 
     cache.remove(oldest_tid);
     oldest_tid++;
+    System.out.println("DONE!");
   }
 
   private boolean shouldEvict() {
