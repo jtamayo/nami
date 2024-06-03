@@ -16,8 +16,6 @@ import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.flogger.Flogger;
@@ -37,7 +35,6 @@ public class NamiServer {
   private final Server server;
   private final RaftServer raftServer;
   private final KVStoreStateMachine stateMachine;
-  private final ExecutorService executor;
 
   public NamiServer(
       int port,
@@ -58,8 +55,6 @@ public class NamiServer {
     stateMachine = new KVStoreStateMachine(transactionProcessor);
     // set up gRPC server with its own fixed thread pool
     int availableProcessors = Runtime.getRuntime().availableProcessors();
-    executor = Executors.newFixedThreadPool(availableProcessors);
-    serverBuilder.executor(executor);
     server =
         serverBuilder.addService(new KVStoreService(kvStore, remoteStore, stateMachine)).build();
 
@@ -78,8 +73,6 @@ public class NamiServer {
 
     // Disable installing snapshot in a new follower
     RaftServerConfigKeys.Log.Appender.setInstallSnapshotEnabled(properties, true);
-
-    RaftServerConfigKeys.ThreadPool.setServerSize(properties, availableProcessors);
 
     // set the port (different for each peer) in RaftProperty object
     final int raftPeerPort = peerConfig.getRaftPort();
