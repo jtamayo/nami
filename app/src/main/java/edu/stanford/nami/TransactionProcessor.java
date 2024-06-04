@@ -35,6 +35,17 @@ public class TransactionProcessor {
     return false;
   }
 
+  private boolean hasOnlyLocalAndCacheReads(TransactionRequest request) {
+    for (InTransactionGet inTransactionGet : request.getGetsList()) {
+      NKey key = new NKey(inTransactionGet.getKey());
+      // Will need to do a remote fetch to get the outcome of this tx, skip
+      if (!this.kvStore.hasKeyInAllocation(key) && this.cachingStore.get(key) == null) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   private boolean areInTransactionGetValuesValid(
       long previousTransactionTid, List<InTransactionGet> inTransactionGets) {
     log.atFine().log(
@@ -131,8 +142,7 @@ public class TransactionProcessor {
       TransactionRequest request, long assignedTid, boolean isLeader) {
     log.atFine().log("Processing transaction with assignedTid " + assignedTid + ", tx: " + request);
     TransactionStatus transactionStatus;
-    // Change this if we ever decide to cache non-local transactions on followers
-    if (isLeader || hasLocalWrites(request)) {
+    if (isLeader || hasLocalWrites(request) || hasOnlyLocalAndCacheReads(request)) {
       // Leader constructs response to client, so it must always determine tx status
       // If you have local writes, then you also need to determine status
       var priorTid = kvStore.getLatestTid(); // check against most recently seen tid
