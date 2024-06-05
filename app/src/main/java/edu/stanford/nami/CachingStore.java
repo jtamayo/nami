@@ -18,12 +18,13 @@ public class CachingStore {
   }
 
   public ByteString get(NKey key) {
-    Long tid = index.get(key);
-    if (tid == null) {
-      return null;
-    }
-    HashMap<NKey, ByteString> writtenValues = cache.get(tid);
-    return writtenValues.get(key);
+    return null;
+//    Long tid = index.get(key);
+//    if (tid == null) {
+//      return null;
+//    }
+//    HashMap<NKey, ByteString> writtenValues = cache.get(tid);
+//    return writtenValues.get(key);
   }
 
   private void evictOldest() {
