@@ -2,6 +2,7 @@ package edu.stanford.nami.examples;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.UniformReservoir;
 import com.google.common.base.Charsets;
@@ -29,6 +30,7 @@ import io.grpc.InsecureChannelCredentials;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -44,13 +46,13 @@ public final class BankingApp {
             "banking-app.accountSize", () -> new Histogram(new UniformReservoir()));
     Timer moveMoney =
         ClientMetrics.registry.timer(
-            "banking-app.moveMoney", () -> new Timer(new UniformReservoir()));
+            "banking-app.moveMoney", () -> new Timer(new SlidingTimeWindowArrayReservoir(2, TimeUnit.SECONDS)));
     Counter numConflicts = ClientMetrics.registry.counter("banking-app.conflicts");
   }
 
-  public static final int THREADS = 30;
+  public static final int THREADS = 5;
   public static final int ACCOUNTS = 30000;
-  public static final int TX_PER_THREAD = 400;
+  public static final int TX_PER_THREAD = 200;
   public static final int MOVES_PER_TX = 5;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;

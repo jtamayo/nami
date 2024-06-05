@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 @UtilityClass
 @Slf4j // must use Slf4j to be compatible with Slf4jReporter
 public class ClientMetrics {
-  public static final long METRIC_REPORTING_PERIOD_SEC = 5;
+  public static final long METRIC_REPORTING_PERIOD_SEC = 2;
 
   public static final MetricRegistry registry = new MetricRegistry();
   private static CsvReporter csvReporter = null;
