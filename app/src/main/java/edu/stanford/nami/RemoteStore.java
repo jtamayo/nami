@@ -268,6 +268,7 @@ public class RemoteStore implements AutoCloseable {
       case CONNECTING:
       case SHUTDOWN:
       case TRANSIENT_FAILURE:
+        log.atWarning().log("Channel is down");
         // remote server is down, or local client is terminating connections
         return false;
       default:
