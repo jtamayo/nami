@@ -255,11 +255,11 @@ public class RemoteStore implements AutoCloseable {
   private static boolean isUp(ManagedChannel channel) {
     ConnectivityState channelState = channel.getState(false);
     switch (channelState) {
-      case CONNECTING:
       case IDLE:
       case READY:
         // should be ok to attempt to send data
         return true;
+      case CONNECTING:
       case SHUTDOWN:
       case TRANSIENT_FAILURE:
         // remote server is down, or local client is terminating connections
