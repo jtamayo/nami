@@ -28,6 +28,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.ratis.thirdparty.com.google.common.collect.ImmutableSet;
+
 import lombok.extern.flogger.Flogger;
 
 @Flogger
@@ -191,21 +194,24 @@ public class RemoteStore implements AutoCloseable {
   }
 
   private KVStoreGrpc.KVStoreBlockingStub findPeerWithKey(NKey key) {
-    var keyChunk = keyToChunkMapper.map(key);
-    // most naive impl possible: go through chunks, pick first one that has it
-    for (PeerAllocation allocation : chunksConfig.getPeerAllocations()) {
-      if (allocation.peerId().equals(selfId)) {
-        // skip yourself
-        continue;
-      }
-      for (ChunkRange range : allocation.ranges()) {
-        if (range.min() <= keyChunk && keyChunk <= range.max()) {
-          // found a peer that works
-          return peerClients.get(allocation.peerId());
-        }
-      }
-    }
-    throw new IllegalStateException("There is no allocation that matches key " + key);
+    var peerToKeys = findPeersWithKeys(ImmutableSet.of(key));
+    var peer = peerToKeys.keySet().iterator().next(); // hack, pick first one
+    return peerClients.get(peer);
+    // var keyChunk = keyToChunkMapper.map(key);
+    // // most naive impl possible: go through chunks, pick first one that has it
+    // for (PeerAllocation allocation : chunksConfig.getPeerAllocations()) {
+    //   if (allocation.peerId().equals(selfId)) {
+    //     // skip yourself
+    //     continue;
+    //   }
+    //   for (ChunkRange range : allocation.ranges()) {
+    //     if (range.min() <= keyChunk && keyChunk <= range.max()) {
+    //       // found a peer that works
+    //       return peerClients.get(allocation.peerId());
+    //     }
+    //   }
+    // }
+    // throw new IllegalStateException("There is no allocation that matches key " + key);
   }
 
   /**
