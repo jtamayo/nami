@@ -52,7 +52,7 @@ public final class BankingApp {
 
   public static final int THREADS = 5;
   public static final int ACCOUNTS = 30000;
-  public static final int TX_PER_THREAD = 200;
+  public static final int TX_PER_THREAD = 5000;
   public static final int MOVES_PER_TX = 5;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
@@ -248,6 +248,9 @@ public final class BankingApp {
         log.atInfo().log("Worker " + workerIndex + " moving money");
         try (var timer = Metrics.moveMoney.time()) {
           moveMoney();
+        } catch (RuntimeException e) {
+          log.atSevere().log("Error moving money", e);
+          throw e;
         }
       }
       log.atInfo().log("Worker " + workerIndex + " completed");
