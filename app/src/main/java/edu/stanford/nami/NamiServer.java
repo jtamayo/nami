@@ -12,6 +12,8 @@ import edu.stanford.nami.config.ServerConfig;
 import io.grpc.Grpc;
 import io.grpc.InsecureServerCredentials;
 import io.grpc.Server;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
@@ -277,11 +279,17 @@ public class NamiServer {
     }
 
     private ByteString get(ProtoVKey protoVKey) throws InterruptedException, RocksDBException {
+      int maxTidDelta = 20;
       NKey nKey = new NKey(protoVKey.getKey());
       if (this.kvStore.hasKeyInAllocation(nKey)) {
-        var tid = protoVKey.getTid();
-        this.kvStore.waitUtilTid(tid, 5000);
-        byte[] value = this.kvStore.getAsOf(nKey, tid);
+        var requestedTid = protoVKey.getTid();
+        var latestTid = this.kvStore.getLatestTid();
+        if (requestedTid > latestTid + maxTidDelta) {
+          throw new StatusRuntimeException(Status.UNAVAILABLE);
+        }
+        // or io.grpc.StatusRuntimeException,
+        this.kvStore.waitUtilTid(requestedTid, 5000);
+        byte[] value = this.kvStore.getAsOf(nKey, requestedTid);
         Preconditions.checkNotNull(value);
         return ByteString.copyFrom(value);
       } else {
