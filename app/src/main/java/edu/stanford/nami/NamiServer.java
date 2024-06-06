@@ -3,6 +3,7 @@ package edu.stanford.nami;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.io.Files;
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.gson.Gson;
 import com.google.protobuf.ByteString;
 import edu.stanford.nami.config.ChunksConfig;
@@ -93,12 +94,14 @@ public class NamiServer {
 
   /** Start serving requests. */
   public void start() throws IOException {
-    log.atInfo().log("Starting NamiServer gRPC listening on port %s", port);
-    server.start();
     log.atInfo().log(
         "Starting NamiServer raft with id %s and config %s",
         raftServer.getId(), raftServer.getDivision(PeersConfig.getRaftGroupId()));
     raftServer.start();
+    log.atInfo().log("Waiting for raft to catch up");
+    Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+    log.atInfo().log("Starting NamiServer gRPC listening on port %s", port);
+    server.start();
     log.atInfo().log("NamiServer started!");
 
     // make sure we shut down properly
@@ -265,9 +268,6 @@ public class NamiServer {
       } catch (InterruptedException e) {
         log.atWarning().log("Interrupted while processing request %s", request, e);
         responseObserver.onError(e);
-      } catch (StatusRuntimeException e) {
-        log.atWarning().log("Status runtime exception %s", request, e);
-        responseObserver.onError(e);
       }
     }
 
@@ -282,16 +282,10 @@ public class NamiServer {
     }
 
     private ByteString get(ProtoVKey protoVKey) throws InterruptedException, RocksDBException {
-      int maxTidDelta = 20;
       NKey nKey = new NKey(protoVKey.getKey());
       if (this.kvStore.hasKeyInAllocation(nKey)) {
         var requestedTid = protoVKey.getTid();
-        var latestTid = this.kvStore.getLatestTid();
-        if (requestedTid > latestTid + maxTidDelta) {
-          throw new StatusRuntimeException(Status.UNAVAILABLE);
-        }
-        // or io.grpc.StatusRuntimeException,
-        this.kvStore.waitUtilTid(requestedTid, 5000);
+        this.kvStore.waitUtilTid(requestedTid, 1000);
         byte[] value = this.kvStore.getAsOf(nKey, requestedTid);
         Preconditions.checkNotNull(value);
         return ByteString.copyFrom(value);
