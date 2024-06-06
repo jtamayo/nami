@@ -265,6 +265,9 @@ public class NamiServer {
       } catch (InterruptedException e) {
         log.atWarning().log("Interrupted while processing request %s", request, e);
         responseObserver.onError(e);
+      } catch (StatusRuntimeException e) {
+        log.atWarning().log("Status runtime exception %s", request, e);
+        responseObserver.onError(e);
       }
     }
 
