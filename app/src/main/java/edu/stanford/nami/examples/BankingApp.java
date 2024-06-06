@@ -65,8 +65,8 @@ public final class BankingApp {
   private final AtomicLong latestTid = new AtomicLong(0L);
 
   public static void main(String[] args) throws InterruptedException {
-    log.atInfo().log("Starting BankingApp benchmark");
-    log.atInfo().log("Running in " + new File(".").getAbsolutePath());
+    log.atFine().log("Starting BankingApp benchmark");
+    log.atFine().log("Running in " + new File(".").getAbsolutePath());
 
     if (args.length != 2) {
       log.atSevere().log("Invalid usage. Usage: banking-app <Nami|Rocks> <config_file>");
@@ -80,23 +80,23 @@ public final class BankingApp {
       log.atSevere().log("File " + configFile.getAbsolutePath() + " does not exist");
       System.exit(-2);
     } else {
-      log.atInfo().log("Found config file at " + configFile.getAbsolutePath());
+      log.atFine().log("Found config file at " + configFile.getAbsolutePath());
     }
 
     var config = loadClientConfig(configFile);
-    log.atInfo().log("Loaded client config " + config);
+    log.atFine().log("Loaded client config " + config);
     var peersConfig = loadPeersConfig(configFile, config.getPeerConfigsPath());
     var chunksConfig = loadChunksConfig(configFile, config.getChunkConfigPath());
-    log.atInfo().log("Setting up metrics");
+    log.atFine().log("Setting up metrics");
     var metricsDirectory = Config.resolveRelativeToConfigFile(configFile, config.getMetricsPath());
     ClientMetrics.startReporting(metricsDirectory);
 
     if (isNami) {
       try (NamiClient namiClient = new NamiClient(peersConfig, chunksConfig)) {
         new BankingApp(Optional.of(namiClient), Optional.empty()).run();
-        log.atInfo().log("Flushing metrics");
+        log.atFine().log("Flushing metrics");
         ClientMetrics.awaitOneLastReport();
-        log.atInfo().log("Done running banking app");
+        log.atFine().log("Done running banking app");
       } catch (Exception e) {
         e.printStackTrace();
       }
@@ -105,9 +105,9 @@ public final class BankingApp {
       var channel = Grpc.newChannelBuilder(target, InsecureChannelCredentials.create()).build();
       NativeRocksDBClient rocksDBClient = new NativeRocksDBClient(channel);
       new BankingApp(Optional.empty(), Optional.of(rocksDBClient)).run();
-      log.atInfo().log("Flushing metrics");
+      log.atFine().log("Flushing metrics");
       ClientMetrics.awaitOneLastReport();
-      log.atInfo().log("Done running banking app");
+      log.atFine().log("Done running banking app");
     }
   }
 
@@ -141,11 +141,11 @@ public final class BankingApp {
     for (int i = 0; i < THREADS; i++) {
       var worker = new Worker(i, accountKeys);
       workers.add(worker);
-      log.atInfo().log("Creating worker " + i);
+      log.atFine().log("Creating worker " + i);
       worker.start();
     }
     for (var worker : workers) {
-      log.atInfo().log("Waiting on worker " + worker.workerIndex);
+      log.atFine().log("Waiting on worker " + worker.workerIndex);
       worker.join();
     }
 
@@ -186,7 +186,7 @@ public final class BankingApp {
       accountKeys.add(accountKey);
       accountsInBatch++;
       if (accountsInBatch >= ACCOUNT_CREATION_BATCH_SIZE) {
-        log.atInfo().log("Creating %s accounts", accountsInBatch);
+        log.atFine().log("Creating %s accounts", accountsInBatch);
         var response = tx.commit();
         updateLatestTid(response.getTid());
         tx = begin(Optional.empty());
@@ -195,7 +195,7 @@ public final class BankingApp {
     }
 
     if (accountsInBatch > 0) {
-      log.atInfo().log("Creating %s accounts", accountsInBatch);
+      log.atFine().log("Creating %s accounts", accountsInBatch);
       var response = tx.commit();
       updateLatestTid(response.getTid());
     }
@@ -217,8 +217,8 @@ public final class BankingApp {
         negativeBalance += balance;
       }
     }
-    log.atInfo().log("Positive balance: " + positiveBalance);
-    log.atInfo().log("Negative balance: " + negativeBalance);
+    log.atFine().log("Positive balance: " + positiveBalance);
+    log.atFine().log("Negative balance: " + negativeBalance);
     Preconditions.checkState(
         positiveBalance + negativeBalance == 0, "Net balance for accounts was not zero");
   }
@@ -241,9 +241,9 @@ public final class BankingApp {
 
     @Override
     public void run() {
-      log.atInfo().log("Starting worker " + workerIndex);
+      log.atFine().log("Starting worker " + workerIndex);
       for (int i = 0; i < TX_PER_THREAD; i++) {
-        log.atInfo().log("Worker " + workerIndex + " moving money");
+        log.atFine().log("Worker " + workerIndex + " moving money");
         try (var timer = Metrics.moveMoney.time()) {
           moveMoney();
         }
@@ -253,7 +253,7 @@ public final class BankingApp {
           throw new RuntimeException(e);
         }
       }
-      log.atInfo().log("Worker " + workerIndex + " completed");
+      log.atFine().log("Worker " + workerIndex + " completed");
     }
 
     private void moveMoney() {
@@ -270,7 +270,7 @@ public final class BankingApp {
         if (status == TransactionStatus.COMMITTED) {
           break;
         }
-        log.atInfo().log(
+        log.atFine().log(
             "Worker %s encountered a conflict, attempt %s, retrying...", workerIndex, numRetries);
         Metrics.numConflicts.inc();
         numRetries++;
