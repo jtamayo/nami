@@ -48,10 +48,10 @@ public final class BankingApp {
     Counter numConflicts = ClientMetrics.registry.counter("banking-app.conflicts");
   }
 
-  public static final int THREADS = 30;
+  public static final int THREADS = 1;
   public static final int ACCOUNTS = 30000;
-  public static final int TX_PER_THREAD = 400;
-  public static final int MOVES_PER_TX = 5;
+  public static final int TX_PER_THREAD = 5000;
+  public static final int MOVES_PER_TX = 1;
   public static final int MAX_MOVED_AMOUNT = 100;
   public static final int MAX_RETRIES = 20;
   public static final int GARBAGE_LENGTH = 1000;
@@ -246,6 +246,11 @@ public final class BankingApp {
         log.atInfo().log("Worker " + workerIndex + " moving money");
         try (var timer = Metrics.moveMoney.time()) {
           moveMoney();
+        }
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
         }
       }
       log.atInfo().log("Worker " + workerIndex + " completed");
