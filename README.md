@@ -10,7 +10,7 @@ CS244b class project
 ## Running an example banking app
 Build the distribution:
 
-`/gradlew installDist`
+`./gradlew installDist`
 
 To start each of the servers:
 
