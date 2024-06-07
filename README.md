@@ -7,8 +7,20 @@ CS244b class project
 3. Configure `$PATH` to include `JAVA_HOME`. In your .proflie, `export PATH=$JAVA_HOME/bin:$PATH`
 4. Run `./gradlew build` in the root `nami` project. This should install gradle and succeed.
 
-## To run
-`/gradlew run --args='../configs/juan.json'`
+## Running an example banking app
+Build the distribution:
+
+`/gradlew installDist`
+
+To start each of the servers:
+
+`app/build/install/app/bin/nami-server configs/p_00.json`
+`app/build/install/app/bin/nami-server configs/p_01.json`
+`app/build/install/app/bin/nami-server configs/p_02.json`
+
+To run the client workflow:
+
+`app/build/install/app/bin/banking-app Nami configs/client.json`
 
 ## Formatting code
 `./gradlew spotlessApply` (or equivalently `./gradlew sA`).
